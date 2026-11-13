@@ -79,7 +79,7 @@ flowchart TD
     L2 --> L3[Layer3 SessionManager + TaskQueue<br/>会话隔离、并发管控]
     L3 --> L4[Layer4 AgentLooper<br/>循环引擎、状态机、上下文裁剪]
     L4 --> L5[Layer5 ToolDispatchCenter<br/>工具中台统一分发]
-    L5 --> RISK[三层风控<br/>ShellGuard | RiskGate | OffloadGate]
+    L5 --> RISK[三层风控<br/>ShellGuard · RiskGate · OffloadGate]
     RISK --> EXEC[执行能力池<br/>SandboxRuntime / File / Image / Browser / Calendar / Notify / Memory]
 
     %% 云端分支

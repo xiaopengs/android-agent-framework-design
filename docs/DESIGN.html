@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>方案设计文档 · V1.1 Final-Dev</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2312556F'/%3E%3Ctext x='16' y='22' font-size='17' font-family='sans-serif' fill='white' text-anchor='middle' font-weight='700'%3EA%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --ink:#0E1A22; --paper:#F7F8F7; --rule:#C9D2D6; --blue:#12556F;
+  --amber:#B37A2A; --teal:#1F6B5E; --soft:#F0F2F1; --soft2:#F4F7F8;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:15px;line-height:1.75}
+.topbar{border-bottom:1px solid var(--rule);background:#fff}
+.topbar-in{max-width:1280px;margin:0 auto;padding:14px 28px;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap}
+.topbar .brand{font-weight:700;color:var(--blue);font-size:15px}
+.topbar a{color:var(--ink);text-decoration:none;font-size:13px}
+.topbar a:hover{color:var(--blue)}
+.wrap{max-width:1280px;margin:0 auto;padding:28px;display:grid;grid-template-columns:230px 1fr;gap:36px}
+aside{position:sticky;top:24px;align-self:start;max-height:calc(100vh - 48px);overflow:auto}
+aside .nav-title{font-size:12px;letter-spacing:.12em;color:#5F7380;margin:0 0 10px}
+aside ul{list-style:none;margin:0;padding:0}
+aside li{margin:2px 0}
+aside a{display:block;padding:5px 10px;border-left:2px solid transparent;color:#33474F;text-decoration:none;font-size:13.5px;line-height:1.4}
+aside a:hover{border-left-color:var(--blue);color:var(--blue);background:var(--soft2)}
+aside a.lvl2{padding-left:22px;font-size:12.5px;color:#5F7380}
+main{min-width:0}
+article{max-width:880px}
+h1{font-size:25px;line-height:1.35;margin:8px 0 18px;padding-bottom:10px;border-bottom:2px solid var(--blue)}
+h2{font-size:19px;margin:30px 0 12px;color:var(--blue)}
+h3{font-size:15.5px;margin:22px 0 8px}
+h4{font-size:14px;margin:16px 0 6px}
+p{margin:10px 0}
+ul,ol{margin:10px 0;padding-left:22px}
+li{margin:5px 0}
+strong{color:#10262E}
+a{color:var(--blue)}
+code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;background:var(--soft);padding:1px 5px;border-radius:4px}
+pre{background:var(--soft);border:1px solid var(--rule);border-radius:8px;padding:14px;overflow-x:auto;line-height:1.6}
+pre code{background:none;padding:0;font-size:13px}
+pre.mermaid{background:#fff;border:1px dashed var(--rule);text-align:center;padding:18px}
+blockquote{margin:14px 0;padding:10px 16px;border-left:3px solid var(--blue);background:var(--soft2);border-radius:0 8px 8px 0;color:#33474F}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;table-layout:fixed}
+th,td{border:1px solid var(--rule);padding:8px 10px;vertical-align:top;word-break:break-word}
+th{background:#F2F2F2;font-weight:600;text-align:left}
+tr:nth-child(even) td{background:#FBFCFC}
+img{max-width:100%;height:auto;border:1px solid var(--rule);border-radius:8px}
+.meta{color:#5F7380;font-size:13px;margin-bottom:20px}
+@media (max-width:920px){
+  .wrap{grid-template-columns:1fr;padding:18px}
+  aside{position:static;max-height:none;margin-bottom:10px}
+}
+</style>
+</head><body>
+<div class="topbar"><div class="topbar-in">
+  <span class="brand">Android 端侧 Agent 框架</span>
+  <a href="DESIGN.html">方案设计文档</a>
+  <a href="REQUIREMENTS-SRS.html">需求规格说明书</a>
+  <a href="https://github.com/xiaopengs/android-agent-framework-design">GitHub 仓库</a>
+</div></div>
+<div class="wrap">
+<aside><nav><p class="nav-title">目录</p><ul><li><a class=" lvl2" href="#h-1">修订记录</a></li><li><a class=" lvl2" href="#h-2">1 文档概述</a></li><li><a class=" lvl2" href="#h-3">1.1 文档目的</a></li><li><a class=" lvl2" href="#h-4">1.2 适用范围</a></li><li><a class=" lvl2" href="#h-5">1.3 P0 核心工具清单（端侧独占，Router 禁止纯 CLOUD 调度）</a></li><li><a class=" lvl2" href="#h-6">1.4 术语定义</a></li><li><a class=" lvl2" href="#h-7">1.5 设计总原则</a></li><li><a class=" lvl2" href="#h-8">2 整体架构设计（五层架构 + Mermaid 架构图）</a></li><li><a class=" lvl2" href="#h-9">2.1 五层分层职责</a></li><li><a class=" lvl2" href="#h-10">2.2 架构框图（Mermaid）</a></li><li><a class=" lvl2" href="#h-11">3 核心顺序图（3 条主链路）</a></li><li><a class=" lvl2" href="#h-12">3.1 链路 1：LOCAL 本地离线模式（无云端交互）</a></li><li><a class=" lvl2" href="#h-13">3.2 链路 2：HYBRID 端云协同模式（核心链路，云端规划，端侧执行工具）</a></li><li><a class=" lvl2" href="#h-14">3.3 链路 3：CLOUD 云端全权模式（无本地独占工具）</a></li><li><a class=" lvl2" href="#h-15">4 工具内部子时序（通用范式，shell_execute 示例，所有工具复用该流程）</a></li><li><a class=" lvl2" href="#h-16">5 会话状态机（SessionState，状态持久化，支持断点续跑）</a></li><li><a class=" lvl2" href="#h-17">6 模块间接口契约（开发直接对齐入参、回调、异常）</a></li><li><a class=" lvl2" href="#h-18">6.1 RootRouter 对外接口（全局唯一入口）</a></li><li><a class=" lvl2" href="#h-19">6.2 CloudAgentBus 接口</a></li><li><a class=" lvl2" href="#h-20">6.3 ToolDispatchCenter 工具统一入口</a></li><li><a class=" lvl2" href="#h-21">6.4 AgentLooper 会话循环接口</a></li><li><a class=" lvl2" href="#h-22">7 10 个核心工具详细协议、能力、风控规范（最终定稿）</a></li><li><a class=" lvl2" href="#h-23">通用统一入参出参格式</a></li><li><a class=" lvl2" href="#h-24">7.1 shell_execute 沙箱命令执行</a></li><li><a class=" lvl2" href="#h-25">7.2 file_read 文件读取</a></li><li><a class=" lvl2" href="#h-26">7.3 file_write 文件写入</a></li><li><a class=" lvl2" href="#h-27">7.4 file_edit 文件增量编辑</a></li><li><a class=" lvl2" href="#h-28">7.5 read_image 图片读取解析</a></li><li><a class=" lvl2" href="#h-29">7.6 browser_use 浏览器自动化</a></li><li><a class=" lvl2" href="#h-30">7.7 memory_write 长期记忆写入</a></li><li><a class=" lvl2" href="#h-31">7.8 memory_get 长期记忆读取</a></li><li><a class=" lvl2" href="#h-32">7.9 android_calendar 系统日历（保留）</a></li><li><a class=" lvl2" href="#h-33">7.10 android_notify 系统通知（保留）</a></li><li><a class=" lvl2" href="#h-34">8 端云协同全链路时序（文字描述）</a></li><li><a class=" lvl2" href="#h-35">8.1 HYBRID 标准闭环时序（核心）</a></li><li><a class=" lvl2" href="#h-36">8.2 LOCAL / CLOUD 时序</a></li><li><a class=" lvl2" href="#h-37">9 数据存储与链路设计</a></li><li><a class=" lvl2" href="#h-38">9.1 持久化数据</a></li><li><a class=" lvl2" href="#h-39">9.2 完整数据流</a></li><li><a class=" lvl2" href="#h-40">10 模块依赖总图（文本）</a></li><li><a class=" lvl2" href="#h-41">11 可移植组件清单（完整可剥离 SDK）</a></li><li><a class=" lvl2" href="#h-42">11.1 100% 可移植无 UI 核心模块</a></li><li><a class=" lvl2" href="#h-43">11.2 需剔除模块</a></li><li><a class=" lvl2" href="#h-44">12 非功能需求</a></li><li><a class=" lvl2" href="#h-45">13 风险与解决方案</a></li><li><a class=" lvl2" href="#h-46">14 全量验收标准（最终定稿，含 10 工具专项）</a></li><li><a class=" lvl2" href="#h-47">14.1 框架基础验收</a></li><li><a class=" lvl2" href="#h-48">14.2 路由规则专项验收</a></li><li><a class=" lvl2" href="#h-49">14.3 10 个核心工具全覆盖验收（P0 必过）</a></li><li><a class=" lvl2" href="#h-50">14.4 协同链路验收</a></li><li><a class=" lvl2" href="#h-51">15 开发交付物清单</a></li></ul></nav></aside>
+<main><article>
+<h1>方案设计文档 · V1.1 Final-Dev</h1>
+<p class="meta">五层架构 · 三模式调度 · 10 个核心工具 · 接口契约与验收</p>
+
+<blockquote>
+<p>文档说明：本版为开发基线文档，包含五层架构、Mermaid 架构图、3 条核心业务顺序图、工具子时序图、会话状态机、模块接口契约；完整保留工具定义、风控、验收、非功能需求。所有 Mermaid 代码可直接复制到 Typora / Obsidian / Mermaid LiveEditor 渲染图形。</p>
+</blockquote>
+<h2 id="h-1">修订记录</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">版本</th>
+<th style="text-align: left;">日期</th>
+<th style="text-align: left;">修订说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">V1.0</td>
+<td style="text-align: left;">2026-11-13</td>
+<td style="text-align: left;">初始纯端侧 Headless 架构：Looper、沙箱、基础工具、MCP、A2A</td>
+</tr>
+<tr>
+<td style="text-align: left;">V1.1</td>
+<td style="text-align: left;">2026-11-13</td>
+<td style="text-align: left;">架构升级：新增 RootRouter 端云决策、CloudAgentBus 通信总线、五层端云协同架构</td>
+</tr>
+<tr>
+<td style="text-align: left;">V1.1-Final</td>
+<td style="text-align: left;">2026-11-13</td>
+<td style="text-align: left;">定稿：10 个 P0 核心工具全集，路由、风控、MCP、协同、验收对齐</td>
+</tr>
+<tr>
+<td style="text-align: left;">V1.1-Final-Dev</td>
+<td style="text-align: left;">2026-11-13</td>
+<td style="text-align: left;">开发落地增强版：增加架构图、3 套核心顺序图、模块接口契约、状态机、调用边界</td>
+</tr>
+</tbody>
+</table>
+<h2 id="h-2">1 文档概述</h2>
+<h3 id="h-3">1.1 文档目的</h3>
+<p>本文为 nanoMuse Android Headless Agent 端侧 Agent 框架<strong>开发指导基线文档</strong>。除能力、协议、工具定义外，补充：<strong>组件依赖关系、消息时序、同步/异步边界、异常分支、模块间接口契约、状态流转</strong>，SDK 开发、测试、云端联调同学可直接基于本文档编码、编写单元测试、编写联调用例。</p>
+<h3 id="h-4">1.2 适用范围</h3>
+<ul>
+<li>运行环境：Android 10+，纯后台 Service，无 UI 依赖</li>
+<li>任务来源：用户 Query、三方 Agent 调用、定时任务、A2A 跨设备任务、云端协同子任务</li>
+<li>调度模式：LOCAL / CLOUD / HYBRID</li>
+<li>交付形态：可独立剥离的端侧 Agent Runtime SDK</li>
+</ul>
+<h3 id="h-5">1.3 P0 核心工具清单（端侧独占，Router 禁止纯 CLOUD 调度）</h3>
+<ol>
+<li><code>shell_execute</code> 沙箱命令执行</li>
+<li><code>file_read</code> 文件读取</li>
+<li><code>file_write</code> 文件写入</li>
+<li><code>file_edit</code> 文件增量编辑/替换</li>
+<li><code>read_image</code> 图片解析读取</li>
+<li><code>browser_use</code> 浏览器自动化</li>
+<li><code>memory_write</code> 长期记忆写入</li>
+<li><code>memory_get</code> 长期记忆读取</li>
+<li><code>android_calendar</code> 系统日历操作（保留）</li>
+<li><code>android_notify</code> 本地通知推送（保留）</li>
+</ol>
+<h3 id="h-6">1.4 术语定义</h3>
+<table>
+<thead>
+<tr>
+<th>术语</th>
+<th>释义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Agent Looper</td>
+<td>端侧核心任务循环机，迭代推理、工具调用、上下文回灌、终止判定</td>
+</tr>
+<tr>
+<td>Runtime 沙箱</td>
+<td>无 Root Proot+Alpine 隔离环境，Shell 脚本隔离执行</td>
+</tr>
+<tr>
+<td>Root Router</td>
+<td>全局第一跳决策器，判定 LOCAL / CLOUD / HYBRID</td>
+</tr>
+<tr>
+<td>Cloud-Agent Bus</td>
+<td>端云双向可靠通信总线，信封协议、ACK、重试、流式</td>
+</tr>
+<tr>
+<td>HYBRID 协同</td>
+<td>云端负责规划推理，端侧执行独占工具，双向闭环</td>
+</tr>
+<tr>
+<td>Headless</td>
+<td>纯后台无界面 Service 运行</td>
+</tr>
+<tr>
+<td>A2A</td>
+<td>跨设备 Agent 任务转交通信</td>
+</tr>
+<tr>
+<td>ToolDispatchCenter</td>
+<td>工具调度中台，统一分发、参数校验、风控入口</td>
+</tr>
+</tbody>
+</table>
+<h3 id="h-7">1.5 设计总原则</h3>
+<ol>
+<li>决策前置：所有请求<strong>必须经过 RootRouter，禁止旁路直连 Looper</strong></li>
+<li>安全兜底：云端下发 TOOL_CALL 和本地触发工具调用，<strong>完全同一条风控链路</strong></li>
+<li>能力独占：10 个工具仅 LOCAL/HYBRID，CLOUD 模式不允许下发这组工具</li>
+<li>异步优先：总线、任务队列、工具执行全部异步；会话内部串行，会话之间并行</li>
+<li>可观测：全链路 traceId / sessionId 贯穿所有模块、日志、消息、审计</li>
+</ol>
+<h2 id="h-8">2 整体架构设计（五层架构 + Mermaid 架构图）</h2>
+<h3 id="h-9">2.1 五层分层职责</h3>
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>模块</th>
+<th>核心职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Layer1 协同调度层</td>
+<td>RootRouter</td>
+<td>入口统一收单、网络检测、工具依赖识别、路由决策、生成 trace/sessionId、离线降级</td>
+</tr>
+<tr>
+<td>Layer2 通信总线层</td>
+<td>CloudAgentBus</td>
+<td>信封编解码、ACK、重试、死信、流式分片、消息分发到本地队列/云端</td>
+</tr>
+<tr>
+<td>Layer3 任务接入层</td>
+<td>SessionManager + TaskQueue + ConcurrencyController</td>
+<td>会话隔离、任务排队、并发上限、会话状态持久化、任务启停控制</td>
+</tr>
+<tr>
+<td>Layer4 Agent 内核层</td>
+<td>AgentLooper + StateMachine + ContextManager</td>
+<td>推理循环、工具调用解析、上下文裁剪、轮次上限控制、终止条件判断</td>
+</tr>
+<tr>
+<td>Layer5 能力执行层</td>
+<td>ToolDispatchCenter + 三层风控 + SandboxRuntime + SystemCapability + MemoryStore</td>
+<td>工具路由分发、参数校验、ShellGuard/RiskGate/OffloadGate、沙箱、系统能力、记忆持久化</td>
+</tr>
+</tbody>
+</table>
+<h3 id="h-10">2.2 架构框图（Mermaid）</h3>
+<pre class="mermaid">flowchart TD
+    IN[外部请求入口&lt;br/&gt;用户Query / A2A / 定时 / 云端子任务] --&gt; L1[Layer1 RootRouter&lt;br/&gt;路由决策、离线降级、traceId生成]
+    L1 --&gt; L2[Layer2 Cloud-Agent Bus&lt;br/&gt;信封协议、ACK、重试、流式]
+    L2 --&gt; L3[Layer3 SessionManager + TaskQueue&lt;br/&gt;会话隔离、并发管控]
+    L3 --&gt; L4[Layer4 AgentLooper&lt;br/&gt;循环引擎、状态机、上下文裁剪]
+    L4 --&gt; L5[Layer5 ToolDispatchCenter&lt;br/&gt;工具中台统一分发]
+    L5 --&gt; RISK[三层风控&lt;br/&gt;ShellGuard · RiskGate · OffloadGate]
+    RISK --&gt; EXEC[执行能力池&lt;br/&gt;SandboxRuntime / File / Image / Browser / Calendar / Notify / Memory]
+
+    %% 云端分支
+    L2 --&gt; CLOUD[云端Agent服务&lt;br/&gt;推理规划、任务拆解]
+    CLOUD --&gt;|TOOL_CALL下发| L2
+    EXEC --&gt;|TOOL_RESULT回传| L2
+    L4 --&gt;|结束事件| L3
+    L3 --&gt;|状态上报| L2
+</pre>
+<blockquote>
+<p>数据流规则：
+- 上行：外部输入 → RootRouter → Bus → 本地队列 / 云端
+- 下行：云端 TOOL_CALL → Bus → 本地队列 → Looper → ToolCenter → 风控 → 执行
+- 结果回流：执行完成 → 封装 TOOL_RESULT → Bus → 云端</p>
+</blockquote>
+<h2 id="h-11">3 核心顺序图（3 条主链路）</h2>
+<blockquote>
+<p>绘图约定
+- 异步消息：<code>--&gt;&gt;</code>
+- 同步调用：<code>-&gt;&gt;</code>
+- 返回：<code>--&gt;&gt;</code>
+- 异常分支标注：Error / Block / Timeout</p>
+</blockquote>
+<h3 id="h-12">3.1 链路 1：LOCAL 本地离线模式（无云端交互）</h3>
+<p>适用：断网、隐私任务、低延迟、携带 10 个独占工具</p>
+<pre class="mermaid">sequenceDiagram
+    participant Client as 外部调用方
+    participant Router as RootRouter
+    participant Bus as CloudAgentBus
+    participant SQ as SessionManager+TaskQueue
+    participant Looper as AgentLooper
+    participant TDC as ToolDispatchCenter
+    participant Risk as 三层风控
+    participant Exec as 能力执行层
+    participant Store as 本地存储（日志/记忆）
+
+    Client-&gt;&gt;Router: 提交Query
+    Router-&gt;&gt;Router: 检测网络离线 / 标记LOCAL
+    Router-&gt;&gt;Bus: 封装信封 routerTarget=LOCAL
+    Bus-&gt;&gt;SQ: 投递本地任务入队
+    SQ-&gt;&gt;Looper: 启动会话循环
+    loop 最多200轮
+        Looper-&gt;&gt;Looper: 上下文预处理、请求模型推理
+        Looper-&gt;&gt;TDC: 解析并发起工具调用
+        TDC-&gt;&gt;Risk: 入风控校验
+        alt 风控拦截
+            Risk--&gt;&gt;TDC: risk_block=true
+            TDC--&gt;&gt;Looper: 返回拦截结果
+        else 校验通过
+            Risk-&gt;&gt;Exec: 执行对应工具
+            Exec--&gt;&gt;TDC: 返回工具结果（success/data）
+        end
+        TDC--&gt;&gt;Looper: 回写工具结果
+        Looper-&gt;&gt;Store: 写入审计日志
+    end
+    Looper-&gt;&gt;SQ: 判定任务结束
+    SQ--&gt;&gt;Bus: 任务结束状态
+    Bus--&gt;&gt;Router: 结果汇总
+    Router--&gt;&gt;Client: 返回最终结果
+</pre>
+<h3 id="h-13">3.2 链路 2：HYBRID 端云协同模式（核心链路，云端规划，端侧执行工具）</h3>
+<p>适用：有大推理规划 + 包含本地独占工具，<strong>禁止走 CLOUD</strong></p>
+<pre class="mermaid">sequenceDiagram
+    participant Client as 外部调用方
+    participant Router as RootRouter
+    participant Bus as CloudAgentBus
+    participant Cloud as 云端Agent服务
+    participant SQ as SessionManager+TaskQueue
+    participant Looper as AgentLooper
+    participant TDC as ToolDispatchCenter
+    participant Risk as 三层风控
+    participant Exec as 能力执行层
+
+    Client-&gt;&gt;Router: 提交Query
+    Router-&gt;&gt;Router: 识别存在本地独占工具，判定HYBRID
+    Router-&gt;&gt;Bus: 信封 routerTarget=HYBRID
+    Bus-&gt;&gt;Cloud: 上送原始Query
+    loop 协同循环（云端主导）
+        Cloud-&gt;&gt;Cloud: 推理、任务拆解，生成TOOL_CALL
+        Cloud-&gt;&gt;Bus: 下发TOOL_CALL信封 direction=TO_LOCAL
+        Bus-&gt;&gt;SQ: 投递工具执行任务
+        SQ-&gt;&gt;Looper: 调度工具执行
+        Looper-&gt;&gt;TDC: 分发工具调用
+        TDC-&gt;&gt;Risk: 三层风控校验（和本地调用完全同逻辑）
+        alt 风控拦截
+            Risk--&gt;&gt;TDC: risk_block=true
+        else 放行
+            Risk-&gt;&gt;Exec: 执行工具
+            Exec--&gt;&gt;TDC: 返回结果
+        end
+        TDC--&gt;&gt;Looper: 结果封装
+        Looper-&gt;&gt;Bus: 封装TOOL_RESULT
+        Bus-&gt;&gt;Cloud: 回传结果
+        Cloud-&gt;&gt;Cloud: 灌入结果，继续下一轮推理
+    end
+    Cloud-&gt;&gt;Bus: 下发任务结束标记
+    Bus-&gt;&gt;SQ: 会话终止
+    SQ--&gt;&gt;Router: 任务完成
+    Router--&gt;&gt;Client: 返回最终结果
+</pre>
+<h3 id="h-14">3.3 链路 3：CLOUD 云端全权模式（无本地独占工具）</h3>
+<blockquote>
+<p>重要约束：<strong>只要命中 10 个独占工具，Router 不允许进入这个分支</strong></p>
+</blockquote>
+<pre class="mermaid">sequenceDiagram
+    participant Client as 外部调用方
+    participant Router as RootRouter
+    participant Bus as CloudAgentBus
+    participant Cloud as 云端Agent服务
+
+    Client-&gt;&gt;Router: 提交Query
+    Router-&gt;&gt;Router: 无本地工具依赖，判定CLOUD
+    Router-&gt;&gt;Bus: 信封 routerTarget=CLOUD
+    Bus-&gt;&gt;Cloud: 透传请求
+    Cloud-&gt;&gt;Bus: 流式返回 STREAM_CHUNK
+    Bus--&gt;&gt;Router: 流式分片透传
+    Router--&gt;&gt;Client: 流式输出
+    Cloud-&gt;&gt;Bus: 任务结束
+    Bus--&gt;&gt;Router: 结束标记
+    Router--&gt;&gt;Client: 完整结果收尾
+</pre>
+<h2 id="h-15">4 工具内部子时序（通用范式，shell_execute 示例，所有工具复用该流程）</h2>
+<blockquote>
+<p>所有工具执行统一内部流程，开发实现每个工具都按这个顺序：</p>
+</blockquote>
+<pre class="mermaid">sequenceDiagram
+    participant TDC as ToolDispatchCenter
+    participant SG as ShellGuard
+    participant RG as RiskGate
+    participant OG as OffloadGate
+    participant Sandbox as SandboxRuntime
+    participant Log as AuditLog
+
+    TDC-&gt;&gt;SG: 传入参数，黑名单匹配
+    alt 命中高危规则
+        SG--&gt;&gt;TDC: risk_block=true
+    else
+        SG-&gt;&gt;RG: 风险分级、超时校验
+        RG-&gt;&gt;OG: 权限校验（云端下发标记校验）
+        OG-&gt;&gt;Sandbox: 启动隔离进程，传入参数
+        Sandbox-&gt;&gt;Sandbox: 执行工具逻辑，超时kill
+        Sandbox--&gt;&gt;OG: 返回执行结果
+        OG--&gt;&gt;RG: 结果回传
+        RG--&gt;&gt;SG: 结果回传
+        SG--&gt;&gt;TDC: 返回标准化工具结果
+    end
+    TDC-&gt;&gt;Log: 写入审计日志（traceId、参数、block标记、耗时）
+</pre>
+<h2 id="h-16">5 会话状态机（SessionState，状态持久化，支持断点续跑）</h2>
+<pre class="mermaid">stateDiagram-v2
+    [*] --&gt; IDLE
+    IDLE --&gt; RUNNING: 收到QUERY/TOOL_CALL
+    RUNNING --&gt; WAIT_CLOUD: HYBRID上送云端，等待TOOL_CALL
+    RUNNING --&gt; TOOL_EXEC: 本地工具执行中
+    TOOL_EXEC --&gt; RUNNING: 工具结果回灌，继续循环
+    WAIT_CLOUD --&gt; RUNNING: 收到云端TOOL_CALL
+    RUNNING --&gt; FINISHED: 正常结束 / 达到最大轮次
+    RUNNING --&gt; ERROR: 异常、超时、风控阻断
+    FINISHED --&gt; [*]
+    ERROR --&gt; [*]
+</pre>
+<h2 id="h-17">6 模块间接口契约（开发直接对齐入参、回调、异常）</h2>
+<blockquote>
+<p>所有跨模块调用统一携带：<code>traceId, sessionId</code>
+异常统一返回结构：<code>code, msg, errorType(TIMEOUT / PERMISSION_DENIED / RISK_BLOCK / PARAM_INVALID)</code></p>
+</blockquote>
+<h3 id="h-18">6.1 RootRouter 对外接口（全局唯一入口）</h3>
+<pre><code class="language-kotlin">// 入参
+data class AgentRequest(
+    val rawQuery: String,
+    val allowLocal: Boolean = true,
+    val allowCloud: Boolean = true,
+    val preferLocal: Boolean = false,
+    val userSLA: String? = null
+)
+// 出参：Flow&lt;AgentEnvelope&gt; 流式返回
+fun submit(request: AgentRequest): Flow&lt;AgentEnvelope&gt;
+</code></pre>
+<p><strong>Router 内部决策枚举：<code>LOCAL / CLOUD / HYBRID</code></strong></p>
+<pre><code class="language-kotlin">// 10 个 P0 本地独占工具白名单
+private val localExclusiveTools = setOf(
+    &quot;shell_execute&quot;,
+    &quot;file_read&quot;,
+    &quot;file_write&quot;,
+    &quot;file_edit&quot;,
+    &quot;read_image&quot;,
+    &quot;browser_use&quot;,
+    &quot;memory_write&quot;,
+    &quot;memory_get&quot;,
+    &quot;android_calendar&quot;,
+    &quot;android_notify&quot;
+)
+</code></pre>
+<h3 id="h-19">6.2 CloudAgentBus 接口</h3>
+<pre><code class="language-kotlin">// 发送信封，自动重试、ACK、死信
+suspend fun send(envelope: AgentEnvelope): SendResult
+// 订阅指定 sessionId 的信封流
+fun subscribe(sessionId: String): Flow&lt;AgentEnvelope&gt;
+</code></pre>
+<p>信封 JSON 结构：</p>
+<pre><code class="language-json">{
+  &quot;envelopeId&quot;: &quot;uuid&quot;,
+  &quot;traceId&quot;: &quot;全局链路ID&quot;,
+  &quot;sessionId&quot;: &quot;会话ID&quot;,
+  &quot;direction&quot;: &quot;TO_LOCAL|TO_CLOUD&quot;,
+  &quot;msgType&quot;: &quot;QUERY|STREAM_CHUNK|TOOL_CALL|TOOL_RESULT|STATUS|ERROR|ACK&quot;,
+  &quot;routerTarget&quot;: &quot;LOCAL|CLOUD|HYBRID&quot;,
+  &quot;seq&quot;: 0,
+  &quot;isStream&quot;: false,
+  &quot;payload&quot;: {},
+  &quot;meta&quot;: {&quot;timestamp&quot;: 1762967123000, &quot;timeoutMs&quot;: 30000}
+}
+</code></pre>
+<h3 id="h-20">6.3 ToolDispatchCenter 工具统一入口</h3>
+<pre><code class="language-kotlin">suspend fun invokeTool(toolCall: ToolCall): ToolResult
+</code></pre>
+<p>ToolCall / ToolResult 结构（和 MCP、云端 TOOL_CALL 完全对齐）</p>
+<pre><code class="language-json">// ToolCall
+{
+  &quot;tool_name&quot;: &quot;&quot;,
+  &quot;session_id&quot;: &quot;&quot;,
+  &quot;timeout&quot;: 30000,
+  &quot;parameters&quot;: {}
+}
+// ToolResult
+{
+  &quot;success&quot;: true,
+  &quot;code&quot;: 0,
+  &quot;msg&quot;: &quot;ok&quot;,
+  &quot;data&quot;: {},
+  &quot;risk_block&quot;: false,
+  &quot;risk_msg&quot;: &quot;&quot;
+}
+</code></pre>
+<h3 id="h-21">6.4 AgentLooper 会话循环接口</h3>
+<pre><code class="language-kotlin">suspend fun startSession(sessionId: String, input: EnvelopePayload): SessionFinishReason
+enum class SessionFinishReason {
+    NORMAL_COMPLETE,
+    MAX_ROUND_LIMIT, // 200 轮上限保护
+    USER_CANCEL,
+    ERROR_EXCEPTION
+}
+</code></pre>
+<h2 id="h-22">7 10 个核心工具详细协议、能力、风控规范（最终定稿）</h2>
+<h3 id="h-23">通用统一入参出参格式</h3>
+<h4 id="_3">通用入参</h4>
+<pre><code class="language-json">{
+  &quot;tool_name&quot;: &quot;&quot;,
+  &quot;session_id&quot;: &quot;&quot;,
+  &quot;timeout&quot;: 30000,
+  &quot;parameters&quot;: {}
+}
+</code></pre>
+<h4 id="_4">通用出参</h4>
+<pre><code class="language-json">{
+  &quot;success&quot;: true,
+  &quot;code&quot;: 0,
+  &quot;msg&quot;: &quot;ok&quot;,
+  &quot;data&quot;: {},
+  &quot;risk_block&quot;: false,
+  &quot;risk_msg&quot;: &quot;&quot;
+}
+</code></pre>
+<h3 id="h-24">7.1 shell_execute 沙箱命令执行</h3>
+<p><strong>能力</strong>：Alpine 沙箱内执行 Linux 命令/脚本，完全隔离系统</p>
+<p><strong>参数</strong></p>
+<pre><code class="language-json">{&quot;cmd&quot;:&quot;&quot;,&quot;work_dir&quot;:&quot;/var/minis/tmp&quot;,&quot;timeout_ms&quot;:30000}
+</code></pre>
+<p><strong>风控</strong>：拦截 rm -rf、mkfs、chmod777、curl、wget 等高风险指令</p>
+<h3 id="h-25">7.2 file_read 文件读取</h3>
+<p><strong>能力</strong>：本地文本文件读取，支持范围读取、大小限制</p>
+<p><strong>参数</strong></p>
+<pre><code class="language-json">{&quot;file_path&quot;:&quot;&quot;,&quot;offset&quot;:0,&quot;max_size&quot;:4096}
+</code></pre>
+<p><strong>风控</strong>：路径白名单、禁止系统敏感目录、单文件大小上限</p>
+<h3 id="h-26">7.3 file_write 文件写入</h3>
+<p><strong>能力</strong>：新建/覆盖本地文本文件</p>
+<p><strong>参数</strong></p>
+<pre><code class="language-json">{&quot;file_path&quot;:&quot;&quot;,&quot;content&quot;:&quot;&quot;,&quot;overwrite&quot;:false}
+</code></pre>
+<p><strong>风控</strong>：禁止覆盖核心配置、系统路径</p>
+<h3 id="h-27">7.4 file_edit 文件增量编辑</h3>
+<p><strong>能力</strong>：安全差分替换文本，避免全量覆盖风险</p>
+<p><strong>参数</strong></p>
+<pre><code class="language-json">{&quot;file_path&quot;:&quot;&quot;,&quot;old_string&quot;:&quot;&quot;,&quot;new_string&quot;:&quot;&quot;,&quot;replace_all&quot;:false}
+</code></pre>
+<p><strong>风控</strong>：预校验原文本存在，匹配失败直接报错，防误改</p>
+<h3 id="h-28">7.5 read_image 图片读取解析</h3>
+<p><strong>能力</strong>：读取本地图片、缩略图、元数据、Base64 输出</p>
+<p><strong>参数</strong></p>
+<pre><code class="language-json">{&quot;path&quot;:&quot;&quot;,&quot;return_base64&quot;:true,&quot;thumbnail_w&quot;:512}
+</code></pre>
+<p><strong>风控</strong>：相册权限校验、大图限流、隐私文件拦截</p>
+<h3 id="h-29">7.6 browser_use 浏览器自动化</h3>
+<p><strong>能力</strong>：页面打开、跳转、点击、输入、内容提取</p>
+<p><strong>参数</strong></p>
+<pre><code class="language-json">{&quot;action&quot;:&quot;navigate/click/input/extract&quot;,&quot;url&quot;:&quot;&quot;,&quot;selector&quot;:&quot;&quot;,&quot;text&quot;:&quot;&quot;}
+</code></pre>
+<p><strong>风控</strong>：恶意域名黑名单、内网拦截、超时隔离</p>
+<h3 id="h-30">7.7 memory_write 长期记忆写入</h3>
+<p><strong>能力</strong>：Agent 私有长期记忆持久化</p>
+<p><strong>参数</strong></p>
+<pre><code class="language-json">{&quot;key&quot;:&quot;&quot;,&quot;tags&quot;:[],&quot;content&quot;:&quot;&quot;,&quot;expire_at&quot;:null}
+</code></pre>
+<p><strong>风控</strong>：单条容量上限、总记忆配额限制</p>
+<h3 id="h-31">7.8 memory_get 长期记忆读取</h3>
+<p><strong>能力</strong>：Key/标签检索 Agent 历史记忆</p>
+<p><strong>参数</strong></p>
+<pre><code class="language-json">{&quot;key&quot;:&quot;&quot;,&quot;tags&quot;:[],&quot;top_k&quot;:5}
+</code></pre>
+<p><strong>风控</strong>：只读低风险，无高危拦截</p>
+<h3 id="h-32">7.9 android_calendar 系统日历（保留）</h3>
+<p><strong>能力</strong>：查询/新增/修改/删除系统日程</p>
+<p><strong>风控</strong>：权限校验、批量操作风险评级</p>
+<h3 id="h-33">7.10 android_notify 系统通知（保留）</h3>
+<p><strong>能力</strong>：推送本地系统通知</p>
+<p><strong>风控</strong>：频率限流、防刷屏</p>
+<h2 id="h-34">8 端云协同全链路时序（文字描述）</h2>
+<h3 id="h-35">8.1 HYBRID 标准闭环时序（核心）</h3>
+<ol>
+<li>外部 Query 进入框架</li>
+<li>RootRouter 检测包含本地 10 大独占工具，判定 HYBRID</li>
+<li>CloudAgentBus 封装信封，将原始请求上云</li>
+<li>云端 Agent 执行推理、任务拆解，生成<strong>本地 TOOL_CALL</strong></li>
+<li>总线透传云端工具指令至端侧</li>
+<li>端侧三层风控强制校验</li>
+<li>ToolDispatchCenter 匹配对应核心工具执行</li>
+<li>执行结果标准化封装，通过总线 <code>replyToolResult</code> 回传云端</li>
+<li>云端灌入结果，继续下一轮推理循环</li>
+<li>云端判定任务结束，下发终止状态</li>
+<li>端侧回收沙箱进程、持久化日志、释放资源</li>
+</ol>
+<h3 id="h-36">8.2 LOCAL / CLOUD 时序</h3>
+<ul>
+<li>LOCAL：Router 直接本地队列投递，完整本地 Looper 闭环</li>
+<li>CLOUD：无本地工具依赖，全程云端执行，本地零内核启动</li>
+</ul>
+<h2 id="h-37">9 数据存储与链路设计</h2>
+<h3 id="h-38">9.1 持久化数据</h3>
+<ol>
+<li>会话历史消息、任务轮次状态</li>
+<li>10 工具执行审计日志、风控拦截日志</li>
+<li>Router 决策日志（traceId、决策模式、原因）</li>
+<li>总线消息投递日志、死信记录</li>
+<li>Agent 长期记忆库</li>
+</ol>
+<h3 id="h-39">9.2 完整数据流</h3>
+<p>Query → RootRouter 决策 → Bus 信封封装 →</p>
+<p>LOCAL：本地队列 → Looper → 工具执行 → 落库</p>
+<p>CLOUD：总线远程投递 → 云端执行 → 流式回流</p>
+<p>HYBRID：端云双向往复闭环</p>
+<h2 id="h-40">10 模块依赖总图（文本）</h2>
+<pre><code>RootRouter（入口决策）
+    ↓
+CloudAgentBus（消息分发）
+    ↓
+本地任务队列 + 会话管理器
+    ↓
+AgentLooper 核心循环引擎
+    ↓
+ToolDispatchCenter 10 工具统一中台
+    ↓
+三层安全风控校验
+    ↓
+沙箱 Runtime / 系统能力执行层
+</code></pre>
+<h2 id="h-41">11 可移植组件清单（完整可剥离 SDK）</h2>
+<h3 id="h-42">11.1 100% 可移植无 UI 核心模块</h3>
+<ol>
+<li>RootRouter 端云决策引擎</li>
+<li>CloudAgentBus 通信总线全套</li>
+<li>AgentLooper 任务循环内核</li>
+<li>SessionState 会话状态机</li>
+<li>ToolDispatchCenter 10 工具调度中台</li>
+<li>三层安全风控体系</li>
+<li>SandboxRuntime 沙箱运行环境</li>
+<li>Memory 长期记忆模块</li>
+<li>MCP 协议适配层</li>
+<li>A2A 跨 Agent 通信核心</li>
+<li>上下文裁剪、日志、持久化层</li>
+</ol>
+<h3 id="h-43">11.2 需剔除模块</h3>
+<ul>
+<li>所有 Activity/ViewModel/UI 组件</li>
+<li>弹窗交互逻辑（全部静默后台化）</li>
+<li>WebView 界面渲染模块</li>
+</ul>
+<h2 id="h-44">12 非功能需求</h2>
+<ol>
+<li><strong>低延迟</strong>：Router 规则决策 &lt;10ms，总线投递 &lt;50ms</li>
+<li><strong>高可用</strong>：断网自动降级本地，任务不丢失</li>
+<li><strong>绝对安全</strong>：云端指令本地兜底风控，无特权绕过</li>
+<li><strong>流式实时</strong>：端云流透传无卡顿</li>
+<li><strong>全可观测</strong>：全链路 Trace 追踪，决策/消息/执行全日志</li>
+<li><strong>高扩展</strong>：工具可热增、路由规则可配置、传输层可插拔</li>
+</ol>
+<h2 id="h-45">13 风险与解决方案</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">风险</th>
+<th style="text-align: left;">解决方案</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">端云状态不一致</td>
+<td style="text-align: left;">每次工具结果携带上下文摘要，云端一致性校验</td>
+</tr>
+<tr>
+<td style="text-align: left;">总线消息丢失</td>
+<td style="text-align: left;">ACK 确认+重试+死信队列+断连降级</td>
+</tr>
+<tr>
+<td style="text-align: left;">云端下发高危指令</td>
+<td style="text-align: left;">本地三层风控强制拦截，零特权绕过</td>
+</tr>
+<tr>
+<td style="text-align: left;">工具策略膨胀</td>
+<td style="text-align: left;">工具清单、路由规则配置化，无需改内核代码</td>
+</tr>
+<tr>
+<td style="text-align: left;">多会话冲突</td>
+<td style="text-align: left;">sessionId+traceId 双隔离，并行互不干扰</td>
+</tr>
+</tbody>
+</table>
+<h2 id="h-46">14 全量验收标准（最终定稿，含 10 工具专项）</h2>
+<h3 id="h-47">14.1 框架基础验收</h3>
+<ol>
+<li>所有请求强制经过 RootRouter，无法旁路</li>
+<li>离线自动降级 LOCAL，完全离线可用</li>
+<li>纯云端模式本地内核零启动、零资源占用</li>
+<li>HYBRID 协同端云闭环正常</li>
+<li>多会话并行稳定无冲突</li>
+<li>总线消息幂等、重试、流式透传正常</li>
+<li>整套框架可独立编译、后台长期保活</li>
+</ol>
+<h3 id="h-48">14.2 路由规则专项验收</h3>
+<ol>
+<li>携带任意 10 个核心工具，Router <strong>禁止输出 CLOUD</strong></li>
+<li>有本地工具依赖时自动进入 LOCAL/HYBRID</li>
+<li>断网场景全部任务强制本地执行</li>
+</ol>
+<h3 id="h-49">14.3 10 个核心工具全覆盖验收（P0 必过）</h3>
+<p>每工具均需验收：<strong>本地调用正常、云端下发调用正常、参数校验、风控拦截、异常兜底</strong></p>
+<ol>
+<li><strong>shell_execute</strong>：正常命令执行、高危命令拦截、超时强杀</li>
+<li><strong>file_read</strong>：合法读取、超限拦截、非法路径拦截</li>
+<li><strong>file_write</strong>：正常写入、禁止系统路径覆盖</li>
+<li><strong>file_edit</strong>：精准差分替换、不存在原文本报错保护</li>
+<li><strong>read_image</strong>：图片解析成功、权限拦截、大图限流</li>
+<li><strong>browser_use</strong>：页面自动化正常、恶意域名拦截</li>
+<li><strong>memory_write</strong>：记忆写入、容量限额保护</li>
+<li><strong>memory_get</strong>：精准检索记忆内容</li>
+<li><strong>android_calendar</strong>：日程增删改查、权限容错</li>
+<li><strong>android_notify</strong>：通知推送、频率限流保护</li>
+</ol>
+<h3 id="h-50">14.4 协同链路验收</h3>
+<ol>
+<li>云端下发 10 类工具指令可正常被端侧接收执行</li>
+<li>端侧结果标准化回传云端，支撑云端继续循环</li>
+<li>所有云端指令经过本地完整风控校验，无安全绕过</li>
+</ol>
+<h2 id="h-51">15 开发交付物清单</h2>
+<ol>
+<li>RootRouter 路由决策模块 + 单元测试（覆盖 LOCAL/CLOUD/HYBRID、独占工具判定）</li>
+<li>CloudAgentBus 信封编解码、重试、ACK、流式模块</li>
+<li>SessionManager + TaskQueue 会话管理、并发控制、状态持久化</li>
+<li>AgentLooper 循环引擎、上下文裁剪、轮次上限控制</li>
+<li>ToolDispatchCenter 调度中台 + 三层风控（ShellGuard/RiskGate/OffloadGate）</li>
+<li>10 个工具实现，每个工具独立实现类、参数校验、单元测试</li>
+<li>MCP Server 适配层，对外暴露工具 schema</li>
+<li>A2A 跨设备通信适配层</li>
+<li>审计日志、trace 埋点、可观测模块</li>
+</ol>
+</article></main>
+</div>
+<script src="https://fastly.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:'neutral',securityLevel:'loose',flowchart:{htmlLabels:true}});</script>
+</body></html>

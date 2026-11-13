@@ -6,6 +6,10 @@
 
 - [docs/DESIGN.md](docs/DESIGN.md) — 完整方案设计文档（五层架构、3 条主链路顺序图、工具子时序、会话状态机、接口契约、10 个核心工具协议、验收标准）
 - [docs/REQUIREMENTS-SRS.docx](docs/REQUIREMENTS-SRS.docx) — 需求规格说明书（功能列表、模块列表、功能说明、活动时序、非功能与验收）
+- [docs/DESIGN.html](docs/DESIGN.html) — 方案设计文档网页版（浏览器直接打开，Mermaid 图在线渲染，侧边目录导航）
+- [docs/REQUIREMENTS-SRS.html](docs/REQUIREMENTS-SRS.html) — 需求规格说明书网页版（内嵌原图，同套排版外壳）
+
+> 网页版由 `tools/build_html.py` 从 Markdown / DOCX 生成；Mermaid 走 jsDelivr CDN，离线环境可退回 Markdown 源文件阅读。
 
 ## 文档要点
 
