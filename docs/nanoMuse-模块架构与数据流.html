@@ -1,0 +1,2407 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nanoMuse 模块架构与数据流</title>
+<meta name="description" content="逐模块拆解 nanoMuse：职责、原理、架构图、时序图，以及数据怎么流转、存在哪里。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230E1A22'/%3E%3Cpath d='M7 25V7h4l10 12V7h4v18h-4L11 13v12z' fill='%23ECF0F2'/%3E%3Ccircle cx='26' cy='26' r='3' fill='%23A9660F'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://miaoda.feishu.cn" crossorigin>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --paper:#ECF0F2;
+  --panel:#F8FAFB;
+  --ink:#0E1A22;
+  --muted:#5A6975;
+  --rule:#C7D1D8;
+  --blue:#0B5C8A;
+  --amber:#A9660F;
+  --teal:#0F6E5C;
+  --red:#96271F;
+  --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --mono:"JetBrains Mono","SFMono-Regular",Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font:15px/1.78 var(--sans);
+  background-image:
+    repeating-linear-gradient(90deg,transparent 0 63px,rgba(14,26,34,.045) 63px 64px),
+    repeating-linear-gradient(0deg,transparent 0 63px,rgba(14,26,34,.045) 63px 64px);
+}
+a{color:var(--blue);text-decoration:none;border-bottom:1px solid rgba(11,92,138,.35)}
+a:hover{border-bottom-color:var(--blue)}
+:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+.wrap{max-width:1240px;margin:0 auto;padding:0 20px}
+
+/* ---------- masthead ---------- */
+.mast{padding:38px 0 0;border-bottom:2px solid var(--ink)}
+.kicker{font:500 11px/1 var(--mono);letter-spacing:.14em;color:var(--muted);text-transform:lowercase;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.kicker span:first-child{color:var(--ink)}
+h1{font:700 clamp(38px,7.2vw,74px)/1.02 var(--sans);letter-spacing:-.03em;margin:18px 0 0;max-width:100%}
+h1 em{font-style:normal;color:var(--blue)}
+.dek{margin:18px 0 0;max-width:60ch;font-size:16px;color:#26333C}
+.dek b{font-weight:600}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:0;margin:34px 0 0;border-top:1px solid var(--ink)}
+.fact{padding:14px 14px 20px 0;border-bottom:1px solid var(--rule)}
+.fact:last-child{border-bottom:0}
+.fact .n{font:500 22px/1.1 var(--mono);letter-spacing:-.03em}
+.fact .l{font-size:12px;color:var(--muted);margin-top:6px}
+@media(min-width:760px){
+ .facts{grid-template-columns:repeat(4,1fr)}
+ .fact{border-bottom:0;border-right:1px solid var(--rule);padding:16px 18px 22px 0}
+ .fact:last-child{border-right:0}
+ .fact .n{font-size:26px}
+}
+.mast-pad{padding-bottom:26px}
+
+/* ---------- index nav ---------- */
+.nav{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--rule);box-shadow:0 6px 14px -10px rgba(14,26,34,.35)}
+.nav-in{display:flex;gap:0;overflow-x:auto;padding:9px 12px;max-width:1240px;margin:0 auto;scrollbar-width:none}
+.nav-in::-webkit-scrollbar{display:none}
+.nav a{flex:0 0 auto;font:500 11px/1 var(--mono);color:var(--muted);padding:7px 8px;border:1px solid transparent;border-bottom:0;text-decoration:none}
+.nav a:hover{color:var(--ink);border-color:var(--rule)}
+.nav a.on{color:var(--ink);background:var(--panel);border-color:var(--rule)}
+
+/* ---------- sections ---------- */
+main{padding-bottom:10px}
+.sec{padding:44px 0 8px;border-top:1px solid var(--rule)}
+.mod{padding-top:38px}
+.modhead{display:grid;grid-template-columns:auto 1fr;gap:12px 16px;align-items:start}
+.num{font:500 26px/1 var(--mono);color:var(--blue);letter-spacing:-.04em;padding-top:4px}
+.modhead h2{font:700 clamp(23px,4vw,33px)/1.18 var(--sans);letter-spacing:-.02em;margin:0}
+.role{grid-column:1/-1;margin:0;color:#2C3941;font-size:15px;max-width:706px}
+@media(min-width:760px){
+ .num{font-size:34px}
+ .role{grid-column:2;max-width:700px}
+}
+.grid{display:grid;gap:26px;margin-top:26px}
+@media(min-width:900px){.grid{grid-template-columns:minmax(0,1.45fr) minmax(0,.55fr);align-items:start}}
+h3{font:600 12px/1 var(--mono);letter-spacing:.08em;color:var(--muted);margin:22px 0 8px;text-transform:lowercase}
+h3::before{content:"";display:inline-block;width:16px;height:1px;background:var(--blue);vertical-align:4px;margin-right:8px}
+p{margin:0 0 12px;max-width:726px}
+.pts{margin:0;padding:0;list-style:none}
+.pts li{position:relative;padding:0 0 10px 18px;max-width:726px}
+.pts li::before{content:"";position:absolute;left:0;top:.62em;width:6px;height:1px;background:var(--blue)}
+.pts code, p code{font:400 12.5px/1.5 var(--mono);background:rgba(14,26,34,.055);padding:1px 4px;border-radius:2px;overflow-wrap:anywhere;word-break:normal}
+.aside{border-top:2px solid var(--ink);padding-top:10px}
+.aside .lbl{font:500 10px/1 var(--mono);letter-spacing:.1em;color:var(--muted);text-transform:lowercase}
+.src{list-style:none;margin:10px 0 0;padding:0}
+.src li{font:400 11.5px/1.65 var(--mono);color:#33454F;padding:3px 0;border-bottom:1px dotted var(--rule);word-break:break-all}
+.io{margin-top:20px;border-left:2px solid var(--teal);padding:2px 0 2px 12px}
+.io dt{font:500 10.5px/1.6 var(--mono);color:var(--teal);letter-spacing:.06em}
+.io dd{margin:0 0 6px;font-size:13px;color:#2C3941}
+
+/* ---------- plates ---------- */
+.plate{margin:26px 0 0;background:var(--panel);border:1px solid var(--rule);position:relative}
+.canvas{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
+.canvas svg{display:block;max-width:none}
+@media (max-width:820px){.canvas svg{min-width:820px}.canvas{padding-bottom:6px}}
+@media (max-width:560px){h1{font-size:30px;letter-spacing:-.02em}}
+.plate::before,.plate::after{content:"";position:absolute;width:7px;height:7px;border:1px solid var(--muted);opacity:.5}
+.plate::before{left:-4px;top:-4px;border-right:0;border-bottom:0}
+.plate::after{right:-4px;bottom:-4px;border-left:0;border-top:0}
+.phead{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+.phead .tag{font:500 9.5px/1 var(--mono);letter-spacing:.11em;color:var(--blue);text-transform:lowercase;white-space:nowrap}
+.phead .ttl{font:600 13px/1.35 var(--sans);color:#24333C;flex:1;min-width:160px}
+.phead .rm{font:400 10.5px/1 var(--mono);color:var(--muted);white-space:nowrap}
+.canvas{overflow-x:auto;padding:12px 10px 10px;-webkit-overflow-scrolling:touch}
+.canvas svg{display:block;width:100%;min-width:760px;height:auto}
+.canvas.arch svg{min-width:720px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font:400 10.5px/1.6 var(--mono);color:var(--muted);padding:8px 12px 0}
+.legend i{display:inline-block;width:18px;height:2px;background:var(--blue);vertical-align:3px;margin-right:5px}
+.legend i.d{background:var(--teal);height:1px;border-top:1px dashed var(--teal)}
+.legend i.a{background:var(--amber)}
+
+/* ---------- tables ---------- */
+.tblwrap{overflow-x:auto;margin:18px 0 0;border:1px solid var(--rule);background:var(--panel)}
+table{border-collapse:collapse;width:100%;min-width:700px;table-layout:fixed;font-size:13px}
+col.c1{width:16%}col.c2{width:24%}col.c3{width:26%}col.c4{width:22%}col.c5{width:12%}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--rule)}
+th{font:600 10.5px/1.4 var(--mono);letter-spacing:.06em;color:var(--muted);background:#EFF3F5;text-transform:lowercase}
+td.mono{font:400 11.5px/1.55 var(--mono);word-break:break-all;color:#33454F}
+tr:last-child td{border-bottom:0}
+.tagbox{display:inline-block;font:500 9.5px/1.4 var(--mono);padding:2px 5px;border:1px solid currentColor;color:var(--teal)}
+.tagbox.a{color:var(--amber)}
+.tagbox.b{color:var(--blue)}
+.tagbox.r{color:var(--red)}
+
+/* ---------- misc ---------- */
+.note{margin:26px 0 0;padding:14px 16px;background:rgba(169,102,15,.07);border-left:3px solid var(--amber);font-size:13.5px;max-width:74ch}
+.note b{font-weight:600}
+footer{margin-top:52px;border-top:2px solid var(--ink);padding:22px 0 40px;font-size:12.5px;color:var(--muted)}
+footer ol{margin:8px 0 18px;padding-left:18px}
+footer li{margin:3px 0;word-break:break-all}
+.play{font:500 10.5px/1 var(--mono);background:var(--ink);color:var(--paper);border:0;padding:7px 10px;cursor:pointer;letter-spacing:.04em}
+.play:hover{background:var(--blue)}
+.play[aria-pressed="true"]{background:var(--blue)}
+@media(prefers-reduced-motion:reduce){
+ html{scroll-behavior:auto}
+ .play{display:none}
+}
+@media print{
+ body{background:#fff;background-image:none}
+ .nav{display:none}
+ .plate{break-inside:avoid}
+ main{font-size:11pt}
+}
+</style>
+</head>
+<body>
+
+<header class="mast">
+  <div class="wrap">
+    <div class="kicker"><span>nanomuse / system anatomy</span><span>GPL-3.0-or-later</span><span>repo @ main · 3745 files</span><span>2026-11</span></div>
+    <h1>一个 Agent，<br>十六层结构，<em>一套数据</em></h1>
+    <p class="dek">nanoMuse 是浙大 APRIL 实验室开源的个人 Agent：手机、桌面、浏览器各跑一个自己的 Muse，用中继互相接管屏幕与命令。这份报告按模块拆开它——每一层管什么、按什么原理工作、数据从哪里进来、最后落在哪张表或哪个文件里。</p>
+    <div class="facts">
+      <div class="fact"><div class="n">16</div><div class="l">核心模块（M01–M16）</div></div>
+      <div class="fact"><div class="n">34</div><div class="l">架构图 + 时序图</div></div>
+      <div class="fact"><div class="n">154</div><div class="l">Python 侧运行时源文件</div></div>
+      <div class="fact"><div class="n">3</div><div class="l">条线协议：REST / WS / hub</div></div>
+    </div>
+  </div>
+</header>
+
+<nav class="nav" aria-label="模块索引">
+  <div class="nav-in">
+    <a href="#overview">总览</a>
+    <a href="#m01">M01 客户端</a>
+    <a href="#m02">M02 装配</a>
+    <a href="#m03">M03 Agent</a>
+    <a href="#m04">M04 模型层</a>
+    <a href="#m05">M05 工具</a>
+    <a href="#m06">M06 Sentinel</a>
+    <a href="#m07">M07 记忆</a>
+    <a href="#m08">M08 服务端</a>
+    <a href="#m09">M09 Hub</a>
+    <a href="#m10">M10 中继</a>
+    <a href="#m11">M11 运行时</a>
+    <a href="#m12">M12 工具</a>
+    <a href="#m13">M13 任务</a>
+    <a href="#m14">M14 互操作</a>
+    <a href="#m15">M15 移植</a>
+    <a href="#m16">M16 抽取</a>
+    <a href="#data">数据</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<section class="sec" id="overview">
+  <div class="modhead">
+    <div class="num">00</div>
+    <h2>整体形状：每台设备都是一个完整 Agent</h2>
+    <p class="role">不是“瘦客户端 + 云端大脑”。手机里跑着原生的 Kotlin Agent，语言的执行交给 APK 里的一个 Alpine；桌面里跑着 dsh + Python 手，云端中继只做三件事：账号、路由、可选的模型代理。理解这一点，后面十一层才成立。</p>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h3>读法</h3>
+      <p>先看这张总览图，认住四个物理位置：<b>设备</b>（App 与界面）、<b>本地运行时</b>（Agent 循环与工具）、<b>协同层</b>（Hub 客户端）、<b>中继</b>（账号与转发）。之后每个模块都在这四层里找到自己的坐标；每个模块给两张图——架构图说明“零件如何咬合”，时序图说明“一次调用如何走过”。</p>
+      <p>图里的连线只画主路径，不画全部可能性；每条连线都有方向，虚线是返回或事件，琥珀色是“需要人点头”的位置。代码引用取仓库真实路径，可以直接对照源码读。</p>
+      <h3>三个不变的结构选择</h3>
+      <ul class="pts">
+        <li><b>模型不碰工具。</b>Agent 只把工具调用交给 Sentinel，由后者决定放行、拦截或问人；这条边界贯穿 M03、M05、M06。</li>
+        <li><b>一轮对话只有一个装配根。</b>所有单例由 <code>NanoMuseApp</code> 创建，会话线程只共享、不新建；这让换模型、开关 Hands 变成改装配层的一件事。</li>
+        <li><b>跨设备传的是“请求”，不是“上下文”。</b>Hub 上跑的是对端自己的 Muse，用对端自己的模型和工具；发起方只保留转写与审批。</li>
+      </ul>
+    </div>
+    <aside class="aside">
+      <div class="lbl">reads on</div>
+      <ul class="src">
+        <li>docs/architecture.md</li>
+        <li>docs/every-device.md</li>
+        <li>docs/hub.md</li>
+        <li>AGENTS.md</li>
+        <li>nanomuse/app.py</li>
+      </ul>
+    </aside>
+  </div>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 00 · arch</span><span class="ttl">总体架构：设备、运行时、协同层、中继</span><span class="rm">source: repo</span></div>
+    <div class="canvas arch" data-arch="overview"></div>
+    <div class="legend"><span><i></i>调用 / 数据下行</span><span><i class="d"></i>事件 / 返回</span><span><i class="a"></i>审批与拦截</span></div>
+  </figure>
+</section>
+
+<section class="sec mod" id="m01">
+  <div class="modhead">
+    <div class="num">M01</div>
+    <h2>客户端外壳：四种形态，一套形状</h2>
+    <p class="role">Android、iOS、桌面、Web 不是四个产品，是同一套交互语言的四次实现：一张脸、一个主会话、若干侧聊、聊天里的审批卡、设备页。每台设备同时扮演两个角色——自己的 Agent，以及别人可以借用的“手和前台”。</p>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h3>它管什么</h3>
+      <p>把人的输入变成一条本地请求，把运行时的事件画成可读的时间线，把“需要你决定”的时刻变成一张卡。它还负责本机的权限：Android 的无障碍服务、macOS 的屏幕录制与辅助功能、文件目录授权。没有这些，后端的工具再强也落不了地。</p>
+
+      <h3>原理</h3>
+      <ul class="pts">
+        <li><b>Android 是上游子树 + 自有包。</b>仓库里的 <code>android/</code> 是 OpenMinis 1.13 的可拉取子树，自有代码只放在 <code>io.github.nanomuse.*</code>；Agent 循环、工具 schema、审批与界面都是 <b>Kotlin 原生</b>，<code>proot</code> + Alpine 只是它手里的那个 Linux（M11、M12 展开）。断网时仍能对话，模型只负责推理。</li>
+        <li><b>iOS 是纯 Swift 客户端。</b><code>android/src/ios/NanoMuse/*.swift</code>，账号与模型走 Cloud；Hub 上只实现 <code>info</code>、<code>open</code>、<code>notify</code>、<code>task</code>，<code>screen</code> 明确回 <code>no_screen</code>——不假装自己有一双看不见的手。</li>
+        <li><b>桌面是“壳 + 插件”两层。</b><code>harness/desktop</code> 是 Electron 壳，启动一个 dsh Host 子进程（Node 模式）；真正干活的是 DeepSeek Harness 加插件 <code>harness/dsh-nanomuse</code>。手不是插件自己实现的，而是把 Python 运行时以 MCP 挂进来（<code>nanomuse mcp</code>）。</li>
+        <li><b>Web 是运行时的自带前门。</b><code>web/</code> 用 Vite + React 构建，产物直接提交到 <code>nanomuse/server/static/</code>，由运行时自己的 HTTP 服务托管；浏览器 Demo 则是跑在模拟手机里的同一套界面。</li>
+        <li><b>只有三条通道。</b>REST <code>/api</code> 负责命令与状态，WebSocket 负责事件与审批，<code>/v1/hub</code> 负责跨设备帧；客户端不直连数据库，也不直连模型。</li>
+      </ul>
+
+      <div class="io">
+        <dt>in</dt><dd>键击、语音、附件、审批选择、权限授予</dd>
+        <dt>out</dt><dd>本地 HTTP 请求、WebSocket 事件、hub 帧；渲染时间线与卡片</dd>
+        <dt>store</dt><dd>Android <code>nanomuse_sync.db</code>（Room）；桌面 <code>~/.nanomuse/desktop</code>；Web 的 origin storage 与凭据库</dd>
+      </div>
+    </div>
+    <aside class="aside">
+      <div class="lbl">source map</div>
+      <ul class="src">
+        <li>android/src/android (OpenMinis subtree)</li>
+        <li>android/src/android/.../io/github/nanomuse</li>
+        <li>android/src/ios/NanoMuse</li>
+        <li>harness/desktop/src</li>
+        <li>harness/dsh-nanomuse/src</li>
+        <li>web/src · nanomuse/server/static</li>
+      </ul>
+    </aside>
+  </div>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 01 · arch</span><span class="ttl">客户端如何接上本地运行时与中继</span><span class="rm">ports: REST · WS · hub</span></div>
+    <div class="canvas arch" data-arch="m01"></div>
+  </figure>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 01 · seq</span><span class="ttl">在手机上发一句话，到界面开始出现文字</span><span class="rm">9 steps</span></div>
+    <div class="canvas" data-seq="m01"></div>
+  </figure>
+</section>
+
+<section class="sec mod" id="m02">
+  <div class="modhead">
+    <div class="num">M02</div>
+    <h2>装配根：把配置变成一个能跑的进程</h2>
+    <p class="role">nanoMuse 的依赖关系是单向的：配置 → 装配根 → 组件 → Agent。没有全局可变单例被随手 new，也没有 Agent 自己去找模型。这一层决定了“换一个 provider”或“关掉 Hands”只需要改一处。</p>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h3>它管什么</h3>
+      <p><code>NanoMuseApp</code> 是组合根：它读配置、建目录、按固定顺序创建保险库、四个 SQLite 存储、连接器、技能库、审计、Sentinel、模型客户端、观察器、MCP、本机手、工具集合，最后把工具集合与模型交给 <code>MuseAgent</code>。它不执行任何业务逻辑，只负责让后面每一层拿到的都是已就绪的依赖。</p>
+
+      <h3>原理</h3>
+      <ul class="pts">
+        <li><b>配置是分层的。</b><code>config.toml</code> 由人写，<code>app-settings.json</code>（<code>&lt;data_dir&gt;/app-settings.json</code>）由 UI 写，后者覆盖前者；Pydantic 在加载时完成类型校验与默认值填充。</li>
+        <li><b>创建顺序有含义。</b>日志 → 目录 → Vault → 记忆/目标/提醒/触发 → 日历与通讯录 → 技能 → 审计 → Sentinel（含授权库）→ 模型（含观察器）→ Holds → MCP → 本机手 → 工具 → Agent。后建的东西可以依赖先建的东西，反过来不行。</li>
+        <li><b>LLM 是可替换的槽位。</b>构造参数允许注入自定义 <code>llm</code>（测试用 <code>MockLLM</code>）；<code>make_llm()</code> 读 provider 与 base_url，工厂决定用哪种协议适配器（M04）。</li>
+        <li><b>工具集合按开关拼装。</b><code>_build_tools()</code> 先放必选项（terminate、ask_user、files、shell、python、web、goals、reminders、triggers），再按 <code>memory.enabled</code>、邮件/日历/通讯录、技能、GUI、Hands、浏览器逐项追加。没开的连接器不会出现在 schema 里。</li>
+        <li><b>同一份装配被多个入口复用。</b><code>serve</code>、<code>chat</code>、<code>run</code>、<code>mcp</code>、<code>daemon</code> 只是装配后的不同外壳；<code>nanomuse mcp</code> 甚至只把 <code>computer_screen</code>/<code>computer_act</code> 以 stdio 暴露给桌面插件。</li>
+        <li><b>线程不重新装配。</b><code>MuseService</code> 给每个会话建 <code>MuseAgent</code> 时，共享同一个 app 的 stores、vault、sentinel、audit，只换 <code>session_file</code> 与 <code>conversation_id</code>。</li>
+      </ul>
+
+      <div class="io">
+        <dt>in</dt><dd>config.toml、app-settings.json、环境变量、CLI 参数</dd>
+        <dt>out</dt><dd>已就绪的 <code>MuseAgent</code>、<code>ToolCollection</code>、<code>MuseService</code></dd>
+        <dt>store</dt><dd>创建并固定 <code>data_dir</code> 与 <code>workspace</code>；本层不写业务数据</dd>
+      </div>
+    </div>
+    <aside class="aside">
+      <div class="lbl">source map</div>
+      <ul class="src">
+        <li>nanomuse/app.py :: NanoMuseApp</li>
+        <li>nanomuse/config.py :: Settings</li>
+        <li>nanomuse/app.py :: _build_tools</li>
+        <li>nanomuse/config.py :: memory_db / goals_db / vault_file</li>
+      </ul>
+    </aside>
+  </div>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 02 · arch</span><span class="ttl">依赖装配：谁先创建，谁依赖谁</span><span class="rm">one direction only</span></div>
+    <div class="canvas arch" data-arch="m02"></div>
+  </figure>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 02 · seq</span><span class="ttl">进程启动：从读到第一行配置到开始监听</span><span class="rm">10 steps</span></div>
+    <div class="canvas" data-seq="m02"></div>
+  </figure>
+</section>
+
+<section class="sec mod" id="m03">
+  <div class="modhead">
+    <div class="num">M03</div>
+    <h2>Agent 循环：一轮任务真正的骨架</h2>
+    <p class="role">这是全项目的心脏：组装一次系统提示，然后反复“问模型—接工具—再问”。看似常见的 ReAct，难点都在边界上——上下文怎么裁、工具交换不能切断、卡住怎么发现、进程被杀后怎么恢复。</p>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h3>它管什么</h3>
+      <p>把一条用户消息推进到最终答复：决定模型看到什么（提示、记忆、目标、近两日日程、设备与技能清单）、能调用什么（工具 schema）、什么时候停（无工具调用、terminate、步数上限、预算超时、卡住）。它不执行工具，也不决定权限。</p>
+
+      <h3>原理</h3>
+      <ul class="pts">
+        <li><b>系统提示每轮重建，而不是缓存。</b>换语言、换记忆、后台目标推进都可能改变提示；中途收到新消息时还会重建一次，让语言规则与记忆跟上最新那句。</li>
+        <li><b>窗口是“最近 + 不可切断”。</b><code>max_context_messages</code> 从尾部取；若切点落在工具交换中间，就向前推到下一条 user 消息；一整轮太长时保留开头的工具交换；图片只留最新 <code>max_context_images</code> 条，历史本身不删图。</li>
+        <li><b>token 预算是另一道闸。</b><code>fit_context()</code> 把系统提示、窗口与工具 schema 一起算进去，超限时按策略裁剪，但保留本轮用户请求。</li>
+        <li><b>空回复有救。</b>模型只想了没答（<code>finish_reason=length</code> 且 content 与 tool_calls 都空）时，用 <code>roomier_max_tokens()</code>（至少 16k）重试一次；连续两次空回复才收尾。</li>
+        <li><b>卡住检测靠签名。</b>最近三条 assistant 的 <code>content + 工具名 + 参数</code> 序列化后完全相同，判定为原地打转，插入一条 <code>STUCK_PROMPT</code> 让它换策略；<code>max_steps</code> 用尽时去掉工具再问一次，强制给结论。</li>
+        <li><b>工具图片走 user 消息。</b>工具结果的消息结构不能带图，所以截图作为紧随其后的一条 user 消息（最多两张）；模型不支持视觉时只给文字并明确告知。</li>
+        <li><b>会话落盘是原子的。</b>写临时文件 → <code>fsync</code> → <code>os.replace</code>；重启后 <code>_repair_dangling_tool_calls</code> 给没有结果的调用补一条结果，否则 provider 会拒收整段历史。</li>
+        <li><b>任务是有预算的。</b><code>task_budget</code> 按任务继承，记录 token、步数、秒数；超时或超预算时把“为什么停”写成一条 assistant 消息，而不是静默失败。</li>
+      </ul>
+
+      <div class="io">
+        <dt>in</dt><dd>用户消息 / 后台提示、inbox 中途消息、装配好的工具与模型</dd>
+        <dt>out</dt><dd>流式文本与推理、工具调用、最终答复、审计事件</dd>
+        <dt>store</dt><dd>messages 在内存；<code>sessions/&lt;sid&gt;.session.json</code> 原子替换；每步一条 <code>audit.jsonl</code></dd>
+      </div>
+    </div>
+    <aside class="aside">
+      <div class="lbl">source map</div>
+      <ul class="src">
+        <li>nanomuse/agent/core.py :: run / _run</li>
+        <li>nanomuse/agent/core.py :: context_messages</li>
+        <li>nanomuse/agent/core.py :: _is_stuck</li>
+        <li>nanomuse/agent/core.py :: _save_session</li>
+        <li>nanomuse/prompts.py</li>
+        <li>nanomuse/llm/budget.py</li>
+      </ul>
+    </aside>
+  </div>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 03 · arch</span><span class="ttl">上下文装配、循环控制、持久化三段</span><span class="rm">files: agent/core.py</span></div>
+    <div class="canvas arch" data-arch="m03"></div>
+  </figure>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 03 · seq</span><span class="ttl">一轮含一次工具调用的完整时序</span><span class="rm">loop until terminate</span></div>
+    <div class="canvas" data-seq="m03"></div>
+  </figure>
+</section>
+
+<section class="sec mod" id="m04">
+  <div class="modhead">
+    <div class="num">M04</div>
+    <h2>模型层：把“任意端点”收敛成一种语气</h2>
+    <p class="role">上层只认识 <code>BaseLLM</code>：给一段消息，拿回一段回答与工具调用。底下可能是 OpenAI Chat Completions、Responses API、ChatGPT 登录态、本地 Ollama，也可能是完全没有原生工具调用的小模型。协议差异全部消化在这一层。</p>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h3>它管什么</h3>
+      <p>选择用哪个端点、按什么协议说话、流式怎么切、图片怎么缩、重试怎么做、工具调用用原生还是提示词模拟。它还维护一张能力目录：谁能聊天、谁能看图、谁能生图、谁能生视频。UI 判断“这个功能能不能用”时只查这张表。</p>
+
+      <h3>原理</h3>
+      <ul class="pts">
+        <li><b>provider 名解析成“协议 + 地址”。</b><code>resolve_provider()</code> 先看目录 <code>nanomuse/llm/providers.json</code>；目录条目给出 protocol 与 base_url，<code>factory.py</code> 再据此选 <code>OpenAIChatLLM</code>、<code>OpenAIResponsesLLM</code> 或 <code>CodexLLM</code>（ChatGPT 那条 PKCE 登录链路）。</li>
+        <li><b>不支持的端点用提示词补。</b><code>PromptToolAdapter</code> 把工具写成系统提示，模型输出 <code>&lt;tool_call&gt;{...}&lt;/tool_call&gt;</code>，结果以 <code>&lt;tool_result&gt;</code> 用户消息回灌；<code>tool_mode=auto</code> 时先试原生，失败再降级。</li>
+        <li><b>流式过滤器负责“分声道”。</b><code>ThinkStreamFilter</code> 逐块识别 <code>&lt;think&gt;</code>，把推理内容交给 <code>on_reasoning_delta</code>，可见文本交给 <code>on_delta</code>；未闭合的 think 视为推理，不污染正文。</li>
+        <li><b>图片在编码前就被压过。</b>长边 1568px、总像素上限 2M、JPEG 编码、按文件缓存；端点一旦拒绝图片内容，<code>vision_available</code> 置为 False，后续只发文字并在原位说明图被略去。</li>
+        <li><b>重试是自己的责任。</b>客户端把底层 retry 关掉（<code>max_retries=0</code>），自己用指数退避包住整个流式请求，避免“流到一半断了却当作成功”。</li>
+        <li><b>预算在调用点上扣。</b><code>task_budget.ask()</code> 是所有模型调用的统一入口，辅助调用（整理记忆、生成点子、Sentinel 观察）也计入同一任务，防止后台调用偷偷烧钱。</li>
+      </ul>
+
+      <div class="io">
+        <dt>in</dt><dd>消息窗口、工具 schema、provider/model/base_url/key、采样参数</dd>
+        <dt>out</dt><dd><code>LLMResponse</code>（content、reasoning、tool_calls、usage、finish_reason）与增量回调</dd>
+        <dt>store</dt><dd>能力目录 <code>providers.json</code>；ChatGPT 的 token store 在 <code>data_dir</code>；请求正文不落盘</dd>
+      </div>
+    </div>
+    <aside class="aside">
+      <div class="lbl">source map</div>
+      <ul class="src">
+        <li>nanomuse/llm/base.py :: BaseLLM</li>
+        <li>nanomuse/llm/factory.py</li>
+        <li>nanomuse/llm/openai_chat.py</li>
+        <li>nanomuse/llm/openai_responses.py</li>
+        <li>nanomuse/llm/prompt_tools.py</li>
+        <li>nanomuse/llm/catalogue.py</li>
+        <li>nanomuse/llm/vision.py</li>
+      </ul>
+    </aside>
+  </div>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 04 · arch</span><span class="ttl">一个抽象，四种协议，一张能力目录</span><span class="rm">files: llm/*</span></div>
+    <div class="canvas arch" data-arch="m04"></div>
+  </figure>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 04 · seq</span><span class="ttl">一次流式回答：排队、首字、推理分流、重试</span><span class="rm">stream + retry</span></div>
+    <div class="canvas" data-seq="m04"></div>
+  </figure>
+</section>
+
+<section class="sec mod" id="m05">
+  <div class="modhead">
+    <div class="num">M05</div>
+    <h2>工具层：模型能碰到的全部东西</h2>
+    <p class="role">工具是 Agent 与世界之间的唯一接口，也是最危险的地方。nanoMuse 把“工具长什么样”和“工具能不能跑”拆成两件事：<code>BaseTool</code> 只描述与执行，权限判断交给 Sentinel。</p>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h3>它管什么</h3>
+      <p>维护工具注册表，把每个工具渲染成 OpenAI function schema；调用时先做参数评估（<code>assess()</code>）生成摘要、风险、警告、目标与出网信息，再交给闸门。它同时负责把 MCP 远端工具、技能脚本、连接器 API、设备屏幕统一成同一种调用形状。</p>
+
+      <h3>原理</h3>
+      <ul class="pts">
+        <li><b>契约是声明式的。</b>每个工具声明 <code>risk</code>、<code>reads_private_data</code>、<code>egress</code>、<code>accepts_secrets</code>；<code>assess(args)</code> 可以按这一次的参数把风险临时抬高，并给出人话摘要——这张摘要就是审批卡上的那一行。</li>
+        <li><b>注册表不负责容错。</b>找不到工具时返回一条“unknown tool + 可用清单”的失败结果，而不是抛异常；<code>safe_execute</code> 兜住其余异常，保证一轮任务不会因一个工具而死。</li>
+        <li><b>内置族按落点分。</b>文件与 <code>shell</code>/<code>python_execute</code> 落在 workspace 与沙箱；<code>web_search</code>/<code>web_fetch</code>/<code>browser</code> 落在网络与页面；memory/goals/reminders/triggers 落在 SQLite；邮件/日历/通讯录是连接器；skills 是“按需展开的指令包”；coding CLI 把 Codex/Claude Code/Cursor 当子进程。</li>
+        <li><b>MCP 是首选扩展方式。</b>支持 stdio、streamable HTTP、SSE 三种传输，一个远端工具映射成一个 <code>MCPTool</code>；手机把 App 自身能力挂成 <code>127.0.0.1</code> 的 device server，工具名统一带 <code>device__</code> 前缀。</li>
+        <li><b>技能是文件，不是函数。</b>内置与用户目录各一份，<code>SKILL.md</code> 在对话里按需展开；沙箱把技能目录只读挂进去，所以技能里的脚本与参考资料能在盒子里运行。</li>
+        <li><b>手是工具的特例。</b><code>phone_screen</code>/<code>phone_act</code>/<code>phone_task</code> 与 <code>computer_screen</code>/<code>computer_act</code> 走同一套注册表，但风险按“手指下面是什么字”动态判定（M06）。</li>
+      </ul>
+
+      <div class="io">
+        <dt>in</dt><dd>模型给出的 <code>tool_call</code>（名字 + JSON 参数）</dd>
+        <dt>out</dt><dd><code>ToolResult</code>（文本、可选图片、stop 标记、错误）回灌为 tool 消息</dd>
+        <dt>store</dt><dd>参数与结果留在消息里；产物进 <code>workspace/</code>；MCP 配置进 <code>app-settings.json</code></dd>
+      </div>
+    </div>
+    <aside class="aside">
+      <div class="lbl">source map</div>
+      <ul class="src">
+        <li>nanomuse/tools/base.py</li>
+        <li>nanomuse/tools/{files,shell,web,email_tool,browser}.py</li>
+        <li>nanomuse/tools/mcp_tools.py</li>
+        <li>nanomuse/skills/</li>
+        <li>nanomuse/tools/phone.py · computer.py</li>
+      </ul>
+    </aside>
+  </div>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 05 · arch</span><span class="ttl">注册表、工具族与它们各自的落点</span><span class="rm">one schema, many backends</span></div>
+    <div class="canvas arch" data-arch="m05"></div>
+  </figure>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 05 · seq</span><span class="ttl">从 schema 到结果：一次工具调用经过四道手续</span><span class="rm">assess → guard → run</span></div>
+    <div class="canvas" data-seq="m05"></div>
+  </figure>
+</section>
+
+<section class="sec mod" id="m06">
+  <div class="modhead">
+    <div class="num">M06</div>
+    <h2>Sentinel：模型与真实世界之间的那道门</h2>
+    <p class="role">它不是“内容审核”，而是一套能力授权系统：每个工具调用都要过六步判定，敏感动作停在你面前，凭据永远不进模型上下文，做过的事全部留痕。项目自己的说法很克制——它是同进程里的一个模块，不是云上的沙箱。</p>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h3>它管什么</h3>
+      <p>决定一次调用是放行、询问还是拒绝；决定授权绑定到哪个具体目标、能活多久；在执行前替换保险库占位符、在执行后抹掉结果里的密钥；把整轮会话标记为“已接触私密数据”，从此对外发送要额外确认。</p>
+
+      <h3>原理</h3>
+      <ul class="pts">
+        <li><b>决策顺序是固定的六步。</b>① <code>deny_tools</code>；② 显式 <code>[[sentinel.rules]]</code>（工具 glob + 参数 glob）；③ <code>always_allow/always_ask</code>；④ 风险等级 × 模式（<code>ask</code>/<code>strict</code>/<code>auto</code>）；⑤ 污点：读过私密数据后，向白名单外出网一律询问；⑥ 警告：<code>rm -rf</code>、<code>sudo</code>、<code>curl | sh</code> 只有显式 allow 规则能覆盖。</li>
+        <li><b>授权是能力，不是态度。</b>grant key 是 <code>tool:target</code>：<code>web_fetch:example.com</code>、<code>send_email:a@b</code>、<code>shell:git</code>。允许 <code>git</code> 不等于允许 <code>curl</code>；一条管道要覆盖其中每个程序。唯一例外是 <code>shell</code> 的“本轮对话”——一次任务马上要用 <code>ls</code>、<code>wc</code>，逐个问是噪音。</li>
+        <li><b>作用域有五档。</b>拒绝、一次、本对话、直到重启、24 小时、始终；后两者写入 <code>approvals.json</code>，可逐条撤销。带警告的调用永远只能“一次”。</li>
+        <li><b>污点按会话隔离。</b>读过邮件、日历、通讯录、workspace 外文件、或标记了 <code>reads_private_data</code> 的 MCP 输出后，该会话被标记；只存在内存，重启即失，旁边的会话不受影响。这是对提示词注入最实用的一道防线。</li>
+        <li><b>保险库只给连接器用。</b>Fernet 加密的 <code>vault.enc</code>，配置里写 <code>{{vault:NAME}}</code>；内置工具不接受占位符（遇到就拒绝，绝不原样执行）；输出里出现密钥替换为 <code>[REDACTED:NAME]</code>；子进程环境变量按名字模式清洗。</li>
+        <li><b>Linux 上有真沙箱。</b>bubblewrap 给每次 <code>shell</code>/<code>python_execute</code> 一个独立命名空间：workspace 唯一可写，home 不可见，<code>/tmp</code> 私有，默认只有回环网络；判定需要网络才给网，此时这次调用就算 egress。</li>
+        <li><b>观察器只观察。</b><code>reviewer</code> 用另一个模型给建议（5 秒超时、6000 字符输入），但建议永不授予权限、永不代替人回答审批卡。</li>
+      </ul>
+
+      <div class="io">
+        <dt>in</dt><dd>工具名、参数、<code>CallAssessment</code>、会话 id、任务目的</dd>
+        <dt>out</dt><dd><code>ToolResult</code>（已脱敏）或拒绝原因；审批卡；审计记录</dd>
+        <dt>store</dt><dd><code>approvals.json</code>（长期授权）、<code>audit.jsonl</code>（逐事件）、<code>vault.enc</code> + <code>vault.key</code>；污点仅在内存</dd>
+      </div>
+    </div>
+    <aside class="aside">
+      <div class="lbl">source map</div>
+      <ul class="src">
+        <li>nanomuse/sentinel/gate.py :: guard</li>
+        <li>nanomuse/sentinel/policy.py :: evaluate</li>
+        <li>nanomuse/sentinel/grants.py</li>
+        <li>nanomuse/sentinel/audit.py</li>
+        <li>nanomuse/sentinel/review.py</li>
+        <li>nanomuse/vault/vault.py</li>
+        <li>nanomuse/sandbox.py</li>
+      </ul>
+    </aside>
+  </div>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 06 · arch</span><span class="ttl">决策、执行、留痕三条并行路径</span><span class="rm">deny / ask / allow</span></div>
+    <div class="canvas arch" data-arch="m06"></div>
+  </figure>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 06 · seq</span><span class="ttl">一次敏感调用：从评估到脱敏结果回到模型</span><span class="rm">approval inside</span></div>
+    <div class="canvas" data-seq="m06"></div>
+  </figure>
+</section>
+
+<section class="sec mod" id="m07">
+  <div class="modhead">
+    <div class="num">M07</div>
+    <h2>长期状态：记忆、目标、提醒、触发</h2>
+    <p class="role">四类“会跨会话活下去”的东西，四种 SQLite 文件：记忆是被动回忆，目标是主动推进，提醒看时间，触发看事件。它们共享一个原则——写入可追溯，冲突可回滚。</p>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h3>它管什么</h3>
+      <p>让 Agent 不必每次从零开始：记住关于人的事实，维护一个带步骤的目标，按时间提醒，按事件触发一次运行，并把这些状态在正确的时间注入系统提示。它还负责清理：合并重复记忆、撤销误记、防止同一提醒重复投递。</p>
+
+      <h3>原理</h3>
+      <ul class="pts">
+        <li><b>记忆表很小，但日志很重。</b><code>memories</code> 只有 content/category/source/时间；<code>memory_log</code> 记录每次改动的 before/after/reason/restored，所以“整理”可以撤销。写入先做完全相同内容去重。</li>
+        <li><b>召回是两路并联。</b>关键词路径全表扫描构建 postings（数据库变更即失效重建），用稀有词 IDF 排序，中文按 bigram；向量路径为每个 embedding 模型存一份 <code>memory_vectors</code>，用文本 hash 判断是否需要重算。向量不可用时关键词路径仍工作。</li>
+        <li><b>注入有硬上限。</b><code>max_inject</code> 控制条数，只进系统提示，不占对话消息；这保证记忆不会把上下文吃光。</li>
+        <li><b>目标与步骤分两级。</b><code>goals</code> 存标题、状态、计划变更提议；<code>steps</code> 存序号与状态，进度由步骤状态推导。后台 goal pass 在独立线程跑，摘要回主会话。</li>
+        <li><b>提醒与触发分开。</b><code>reminders</code> 按时间规则，<code>triggers</code> 按事件条件，<code>fired</code> 记录已触发防重；两者都绑定会话，复用该会话的授权。</li>
+        <li><b>投递至少一次。</b><code>scheduled_deliveries</code> 用 <code>source_key UNIQUE</code> 做幂等键：先 claim 一行再投递，完成后保留行作为“这件事做过了”的证据。</li>
+      </ul>
+
+      <div class="io">
+        <dt>in</dt><dd><code>remember</code>/<code>recall</code>/<code>forget</code>、目标工具、调度器扫描、时钟与事件</dd>
+        <dt>out</dt><dd>注入系统提示的记忆/目标/日程段落；后台摘要；到期投递</dd>
+        <dt>store</dt><dd><code>memory.db</code>、<code>goals.db</code>、<code>reminders.db</code>、<code>triggers.db</code>，加投递表</dd>
+      </div>
+    </div>
+    <aside class="aside">
+      <div class="lbl">source map</div>
+      <ul class="src">
+        <li>nanomuse/memory/store.py</li>
+        <li>nanomuse/memory/consolidate.py</li>
+        <li>nanomuse/memory/embeddings.py</li>
+        <li>nanomuse/goals/store.py</li>
+        <li>nanomuse/reminders/store.py</li>
+        <li>nanomuse/triggers/store.py</li>
+        <li>nanomuse/server/outbox.py</li>
+      </ul>
+    </aside>
+  </div>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 07 · arch</span><span class="ttl">写入、四个库、读取与消费</span><span class="rm">4 sqlite files</span></div>
+    <div class="canvas arch" data-arch="m07"></div>
+  </figure>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 07 · seq</span><span class="ttl">记下一件事，并在下一轮把它召回</span><span class="rm">write then recall</span></div>
+    <div class="canvas" data-seq="m07"></div>
+  </figure>
+</section>
+
+<section class="sec mod" id="m08">
+  <div class="modhead">
+    <div class="num">M08</div>
+    <h2>应用服务：把“一个 Agent”变成“很多会话，一个界面”</h2>
+    <p class="role">Agent 本身是单线程的一次运行；产品要的是主聊天、多个侧聊、后台目标、跨设备任务同时存在而不互相踩。这一层就是调度器：一个线程一个 worker，一个线程一个 inbox，所有线程共享同一套存储与闸门。</p>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h3>它管什么</h3>
+      <p>接收 HTTP 与 WebSocket 请求，维护会话列表与时间线，把 Agent 的回调翻译成前端能画的事件，把审批请求挂起成 future 等前端答复，把定时任务的投递做成至少一次。它还是“产出的文件”能被看见的原因：每轮结束扫描 workspace，把新文件作为 artifact 事件广播。</p>
+
+      <h3>原理</h3>
+      <ul class="pts">
+        <li><b><code>UI</code> 协议是唯一呈现边界。</b>文本增量、assistant 消息、工具调用与结果、Sentinel 通知、<code>ask_approval()</code>、<code>ask_user()</code>。终端是 <code>ConsoleUI</code>，Web 是 <code>WebUI</code>；换一个前端不必改 Agent。</li>
+        <li><b>线程是隔离单位。</b><code>Thread</code> 持有自己的 <code>MuseAgent</code>、<code>inbox</code>、<code>worker</code>、<code>timeline</code>；一个线程忙时，别的线程照常跑。正在运行时收到的新消息进 inbox，在下次模型调用前折叠进当前轮。</li>
+        <li><b>审批是挂起的 future。</b><code>WebUI.ask_approval()</code> 把卡片写进时间线后 <code>await</code>；前端通过 API 解析，future 完成；无人答复则超时（默认 1 小时）按拒绝处理。服务重启时，未决卡片被标为 expired，因为背后的运行已经没了。</li>
+        <li><b>时间线写合并但有版本。</b>关闭时强制 flush 最新快照，旧的 worker 晚到的写不能覆盖新快照；重启时把 <code>running</code> 的工具、<code>pending</code> 的审批、<code>live</code> 的浏览器/手部事件修正为真实状态。</li>
+        <li><b>落盘三件套。</b><code>threads/index.json</code> 只存元信息；<code>&lt;tid&gt;.json</code> 是时间线；<code>&lt;tid&gt;.session.json</code> 是模型看到的完整消息历史。三个文件分开，时间线可以很长而不拖慢模型恢复。</li>
+        <li><b>对外只用 token。</b>服务默认只监听本机，<code>server_token</code> 在 <code>data_dir</code>；跨设备不靠暴露端口，而靠 M09 的出站连接。</li>
+      </ul>
+
+      <div class="io">
+        <dt>in</dt><dd>HTTP 命令、WebSocket 订阅、Agent 回调、定时任务</dd>
+        <dt>out</dt><dd>时间线事件、artifact 通知、审批卡、最终答复</dd>
+        <dt>store</dt><dd><code>threads/index.json</code>、<code>&lt;tid&gt;.json</code>、<code>&lt;tid&gt;.session.json</code>、outbox 库、<code>server_token</code></dd>
+      </div>
+    </div>
+    <aside class="aside">
+      <div class="lbl">source map</div>
+      <ul class="src">
+        <li>nanomuse/server/service.py :: MuseService</li>
+        <li>nanomuse/server/webui.py</li>
+        <li>nanomuse/server/events.py :: Timeline</li>
+        <li>nanomuse/server/api.py</li>
+        <li>nanomuse/server/outbox.py</li>
+        <li>nanomuse/ui.py</li>
+      </ul>
+    </aside>
+  </div>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 08 · arch</span><span class="ttl">接入、线程调度、UI 协议、持久化</span><span class="rm">one agent per thread</span></div>
+    <div class="canvas arch" data-arch="m08"></div>
+  </figure>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 08 · seq</span><span class="ttl">发一条消息：入队、执行、事件推送、审批答复</span><span class="rm">http + ws</span></div>
+    <div class="canvas" data-seq="m08"></div>
+  </figure>
+</section>
+
+<section class="sec mod" id="m09">
+  <div class="modhead">
+    <div class="num">M09</div>
+    <h2>Hub：让每台设备成为另一台的远端</h2>
+    <p class="role">没有端口映射，没有局域网配对。每台设备向中继开一条出站 WebSocket，中继只在同一账号内转发。跨设备只传两种东西：原始动作，和“一整件事”。</p>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h3>它管什么</h3>
+      <p>把账号里的设备组成一个可寻址的集合；让任意设备把命令或任务投给另一台，并跟踪它的进度、审批与终止。它解决的核心问题是“谁来做决定”：命令在发起设备先被判一次，任务里的审批回到提出请求的人手里。</p>
+
+      <h3>原理</h3>
+      <ul class="pts">
+        <li><b>帧很少。</b><code>hello</code>、<code>welcome</code>、<code>devices</code>、<code>call</code>、<code>event</code>、<code>result</code>，加上 <code>ping</code>、<code>rename</code>、<code>forget</code>、<code>profile</code>、<code>sync</code>、<code>working</code>。设备 id 按安装生成（<code>phone-…</code> / <code>pc-…</code>），web 设备永远不是目标。</li>
+        <li><b>动作是原始的。</b><code>info</code>、<code>shell</code>、<code>files</code>、<code>file.get</code>、<code>file.put</code>、<code>open</code>、<code>screen</code>、<code>notify</code> 立即执行，跳过对端的大脑；命令在“打字的那台设备”先过 ShellGuard 或 Sentinel。</li>
+        <li><b>任务是转交的。</b><code>task {text, conversation, turn_id, stream}</code> 让对端自己的 Muse 在独立会话里跑；过程用 <code>event</code> 的 <code>tool</code>/<code>tool_result</code>/<code>approval</code>/<code>text</code> 回流，发起方的聊天里能看到和对端一样的步骤。</li>
+        <li><b>审批回到提问的人。</b>对端的闸门先发 <code>event {stage:"approval"}</code>，发起方弹自己惯用的卡片，<code>approve {approval_id, allow}</code> 回去；对端本地也显示同一张卡，先答先赢。</li>
+        <li><b>可靠性靠 id 与对账。</b>调用 15 分钟超时；任务有 <code>turn_id</code>，重复 turn 返回已存状态而不重放；断线后用 <code>task.status</code> 查 <code>accepted/completed/failed/cancelled/interrupted/unknown</code>，不确定就视为“可能已生效”，绝不自动重发。</li>
+        <li><b>权限是声明出来的。</b>远程控制开关决定 <code>hello</code> 里 <code>actions</code> 的集合；关掉后只答 <code>info</code>/<code>notify</code>，其余回 <code>not_allowed</code>。凭据与设备 id/kind 绑定：4001 是 key 失效，4003 是被同 id 的新连接顶替。</li>
+      </ul>
+
+      <div class="io">
+        <dt>in</dt><dd>本机工具调用（<code>device_*</code> / <code>delegate</code>）、对端帧、账号 key</dd>
+        <dt>out</dt><dd>出站 <code>call</code>、进度 <code>event</code>、审批卡、最终 <code>result</code></dd>
+        <dt>store</dt><dd>中继只存设备行（名字、kind、actions、last_seen）与内存中的 pending call；正文不留</dd>
+      </div>
+    </div>
+    <aside class="aside">
+      <div class="lbl">source map</div>
+      <ul class="src">
+        <li>docs/hub.md</li>
+        <li>cloud/nanomuse_cloud/hub.py</li>
+        <li>nanomuse/hub/client.py · actions.py · service.py</li>
+        <li>nanomuse/tools/devices.py</li>
+        <li>harness/dsh-nanomuse/src/hub.ts · actions.ts · task.ts</li>
+      </ul>
+    </aside>
+  </div>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 09 · arch</span><span class="ttl">发起设备、无状态中继、目标设备</span><span class="rm">outbound only</span></div>
+    <div class="canvas arch" data-arch="m09"></div>
+  </figure>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 09 · seq</span><span class="ttl">手机委派一件事给桌面，审批再回到手机</span><span class="rm">delegate + approval</span></div>
+    <div class="canvas" data-seq="m09"></div>
+  </figure>
+</section>
+
+<section class="sec mod" id="m10">
+  <div class="modhead">
+    <div class="num">M10</div>
+    <h2>中继：账号、额度、同步、可选的模型代理</h2>
+    <p class="role">一个 FastAPI 进程加一个 SQLite 文件，官方可以跑，你也可以自己跑。它不做推理编排，只做四件事：证明你是谁、替你转发、在你愿意时转发模型请求、把会话文本同步给你的其他设备。</p>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h3>它管什么</h3>
+      <p>账号与密钥的生命周期、设备注册表、Hub 路由、OpenAI 形状的模型代理、按 token 计费、对话同步，以及运维控制台。它刻意不把“你问了什么”当成默认采集项——只有三个明确开关：同步、保留轮次、客户端事件。</p>
+
+      <h3>原理</h3>
+      <ul class="pts">
+        <li><b>登录是验证码换 key。</b><code>/v1/auth/code</code> 发 6 位码（阿里云短信或 SMTP），<code>/v1/auth/verify</code> 换 <code>nm_…</code>；同一号码登录第二台设备只多一把 key，不多一份额度。另有密码登录与带 TTL 的 session key。</li>
+        <li><b>模型代理是 OpenAI 形状。</b><code>/v1/models</code> 与 <code>/v1/chat/completions</code>（流式或非流式）由服务端持有上游 key；并发用 <code>CHAT_CONCURRENCY</code> 闸住，排队时用空 <code>choices</code> 的 chunk 告知客户端“在排队”。</li>
+        <li><b>计费按上游 usage。</b><code>ledger</code> 一行一请求，记录模型、token、金额；终身额度加每分钟速率两道闸，防止泄露的 key 被刷穿。</li>
+        <li><b>隐私是构造出来的。</b>手机号与邮箱以 HMAC-SHA256 检索，明文用 AES-GCM 加密（密钥由 <code>CLOUD_SECRET</code> 派生）；key 只存哈希；验证码存“带密钥的哈希”，因为六位数直接哈希等于可穷举。</li>
+        <li><b>同步有自己的 API。</b><code>/v1/sync/*</code> 存会话标题、角色、文本、时间、设备与附件元信息（不存文件）；账号级 <code>seq</code> 单调递增，客户端按 cursor 增量拉；删除留 30 天墓碑；单账号上限 20000 条消息、2000 个侧聊、单条 16384 字节。</li>
+        <li><b>“记录”是可关闭的。</b><code>turns</code> 存整轮请求与响应，图片按 SHA-256 去重成 blob；<code>client_events</code> 只存代码与数字，不存内容；<code>calls</code> 存延迟与结局，90 天清理。</li>
+      </ul>
+
+      <div class="io">
+        <dt>in</dt><dd>登录请求、模型请求、hub 帧、同步推送、profile 写入</dd>
+        <dt>out</dt><dd><code>nm_</code> key、模型流、路由后的帧、同步页、管理台视图</dd>
+        <dt>store</dt><dd>单个 SQLite：accounts / api_keys / codes / ledger / devices / profiles / sync_* / turns / blobs / calls / client_events</dd>
+      </div>
+    </div>
+    <aside class="aside">
+      <div class="lbl">source map</div>
+      <ul class="src">
+        <li>cloud/nanomuse_cloud/api.py</li>
+        <li>cloud/nanomuse_cloud/hub.py</li>
+        <li>cloud/nanomuse_cloud/sync.py</li>
+        <li>cloud/nanomuse_cloud/db.py</li>
+        <li>cloud/nanomuse_cloud/record.py</li>
+        <li>docs/cloud.md</li>
+      </ul>
+    </aside>
+  </div>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 10 · arch</span><span class="ttl">五类入口、四个服务、一个数据库</span><span class="rm">fastapi + sqlite</span></div>
+    <div class="canvas arch" data-arch="m10"></div>
+  </figure>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 10 · seq</span><span class="ttl">登录、一次模型调用、记账与同步</span><span class="rm">auth + proxy</span></div>
+    <div class="canvas" data-seq="m10"></div>
+  </figure>
+</section>
+
+<section class="sec mod" id="m11">
+  <div class="modhead">
+    <div class="num">M11</div>
+    <h2>端侧运行时：一个 APK 里装着一台 Linux</h2>
+    <p class="role">手机端不是“把 Python 服务器塞进 App”。Agent 循环、工具 schema、审批和界面都是 Kotlin 原生的；<code>proot</code> 里的 Alpine 是它伸出去的那只手——命令在这里跑，文件在挂载里看得见，会话之间环境不丢。这一层只解决“能否执行”，不解释“该不该执行”。</p>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h3>它管什么</h3>
+      <p>安装 rootfs、提取 proot、按会话保活一个 shell、把用户选中的目录挂进去、把 DNS 与软件镜像配好，并在每次启动时重新铺一遍随包分发的脚本。它向上只暴露一个入口：<code>ExecutionCoordinator.execute(sessionId, command, timeout)</code>。</p>
+
+      <h3>原理</h3>
+      <ul class="pts">
+        <li><b>一个 APK，一个原生 Agent。</b><code>android/</code> 是 OpenMinis 1.13 的子树，nanoMuse 的改动只在 <code>io.github.nanomuse.*</code> 与带 <code>// nanoMuse:</code> 标记的位置。模型调用、工具分派、审批卡、时间线都在 Kotlin 里发生；<code>proot</code> 不是运行时的宿主，而是 <code>shell_execute</code> 的执行器。仓库里确实有过 WebView + Python 服务器的版本，已被归档为设计记录（<code>docs/archive/android-python-line.md</code>），不是今天下载到的这个 App。</li>
+        <li><b>rootfs 随包走，不联网装。</b>打包时把 <code>alpine-minirootfs 3.21</code> 塞进 assets，首次启动解到 <code>filesDir/alpine-rootfs</code>；解包是手写的 POSIX tar 解析（不依赖设备上的 <code>tar</code>），并用 <code>.arch</code> 记下架构与版本，升级时按此判断要不要重解。</li>
+        <li><b>proot 也是随包的二进制。</b>proot 与 loader 从 assets 提到 <code>nativeLibDir</code>，<code>LD_LIBRARY_PATH</code> 指向那里。它是<b>进程级</b>的：每条命令一个 proot 进程，没有常驻内核，所以没有“内核崩了整机重来”这种状态。</li>
+        <li><b>每次启动重铺一层。</b><code>default_mount</code> 覆盖到 rootfs：<code>/usr/local/bin</code> 下的 <code>minis-open</code>、<code>minis-mcp-cli</code> 等入口脚本、以及 <code>/etc/profile</code>。这一步保证 App 升级后新脚本一定生效；铺完再重放用户选的软件镜像、按系统当前网络刷新 <code>resolv.conf</code>——否则每次启动都会把镜像选择改回默认。</li>
+        <li><b>环境是写死的。</b><code>PATH</code>、<code>HOME=/root</code>、<code>BROWSER=/usr/local/bin/minis-open</code>（让 <code>webbrowser.open()</code> 落到宿主的打开处理器）、<code>ENV=/etc/profile</code>（非登录 shell 也能读到别名与 HISTFILE）、<code>CHARSET=UTF-8</code>、<code>NO_COLOR</code>、<code>PYTHONDONTWRITEBYTECODE</code>。目标只有一个：同一个脚本在手机与桌面输出一致。</li>
+        <li><b>挂载决定边界。</b><code>/var/minis/{workspace,memory,skills,shared,attachments,offloads,mcp-servers,mounts/&lt;name&gt;}</code> 逐个用 <code>-b</code> 绑到宿主目录；用户在系统文件选择器里选的外部文件夹会先转成真实 POSIX 路径再绑。proot 的 <code>-b</code> 在进程启动时就冻结，所以增删挂载会杀掉当前会话的 shell，下一条命令重新拉起——这是设置页动作，用户不在聊天中，不会被感知。</li>
+        <li><b>每会话一条持久 shell。</b><code>PersistentShell</code> 起一个 <code>/bin/sh</code>，命令写进 stdin，末尾附一个唯一标记，读到标记即收尾并解析退出码。同会话用一把 Mutex 串行，不同会话各自一把、可并发；进程死了下条命令自动重建。工作目录、环境变量、<code>apk add</code> 装的包因此能跨命令保留。</li>
+        <li><b>时间预算是显式的。</b>默认 900 秒，<code>timeout</code> 上限也是 900；另有 <code>delay</code> 参数——等待期不占 shell，另一个会话仍可执行。超时与中断由 <code>ShellTimeoutPolicy</code> 与 <code>ExecutionCoordinator</code> 一起处理。</li>
+      </ul>
+
+      <div class="io">
+        <dt>in</dt><dd>命令文本、超时、会话 id、挂载变更、网络切换事件</dd>
+        <dt>out</dt><dd>合并后的 stdout/stderr、退出码、耗时、被杀原因</dd>
+        <dt>store</dt><dd><code>filesDir/alpine-rootfs</code>（Alpine）、<code>nativeLibDir</code>（proot + loader）、<code>/var/minis/*</code> 绑定目录、<code>/tmp</code> 里的 offload 回复文件；shell 注册表只在内存</dd>
+      </div>
+    </div>
+    <aside class="aside">
+      <div class="lbl">source map</div>
+      <ul class="src">
+        <li>sandbox/PRootKernel.kt</li>
+        <li>sandbox/RootfsManager.kt</li>
+        <li>sandbox/PersistentShell.kt</li>
+        <li>sandbox/ExecutionCoordinator.kt</li>
+        <li>sandbox/ShellExecutor.kt</li>
+        <li>assets/default_mount/</li>
+        <li>docs/android.md</li>
+      </ul>
+    </aside>
+  </div>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 11 · arch</span><span class="ttl">启动链：从 APK 到一条能跑命令的 shell</span><span class="rm">proot + alpine</span></div>
+    <div class="canvas arch" data-arch="m11"></div>
+  </figure>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 11 · seq</span><span class="ttl">一句话如何变成 shell 里的输出</span><span class="rm">900s · per session</span></div>
+    <div class="canvas" data-seq="m11"></div>
+  </figure>
+</section>
+
+<section class="sec mod" id="m12">
+  <div class="modhead">
+    <div class="num">M12</div>
+    <h2>端侧工具框架：三类工具、一条桥、三道闸</h2>
+    <p class="role">模型看到的是一份扁平的 schema，实际落到三种物理位置：Kotlin 进程内、Alpine 里的命令、以及被 <code>execve</code> 截走的原生能力。中间那座桥让最后一种看起来像普通命令；三道闸决定哪一步需要人点头。</p>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h3>它管什么</h3>
+      <p>按当前能力拼出工具清单，校验参数，把调用分派到正确的执行器，把结果压回对话，并在需要时弹一张卡。它同时负责把 Android 的系统能力（日历、通讯录、通知、定位、无障碍、Shizuku……）包装成沙箱里可执行的 CLI。</p>
+
+      <h3>原理</h3>
+      <ul class="pts">
+        <li><b>schema 是按能力拼的，不是固定菜单。</b><code>AgentTools.makeAgentTools()</code> 永远给 <code>shell_execute</code>、<code>file_read</code>、<code>file_write</code>、<code>file_edit</code>、<code>browser_use</code>；只有“主模型能看图或有视觉组”才给 <code>read_image</code>；关闭记忆时 <code>memory_write</code> 与 <code>memory_get</code> 直接从 schema 消失——模型连尝试的机会都没有。共 8 个内置工具。</li>
+        <li><b>三条执行路径。</b>① 进程内 Kotlin：文件、图片、浏览器、记忆，直接读写绑定目录或 WebView；② Alpine 命令：<code>shell_execute</code> 经 <code>ExecutionCoordinator</code> 进持久 shell；③ offload CLI：命令里出现 <code>android-calendar</code> 这类名字时，执行被截获，转给 App 里的 handler。目前注册了 <b>24 个</b> handler。</li>
+        <li><b>桥的机制是“改写一次 execve”。</b>guest 里执行 <code>execve("android-calendar", argv, envp)</code>，proot 扩展把 argv/env/cwd 通过<b>抽象 Unix socket</b> 发给 App；handler 同步跑完，把输出写进 guest 的 <code>/tmp</code> 文件，回一个 <code>(exit_code, path)</code>；扩展再把这次 execve 改写成 <code>/bin/cat &lt;tmpfile&gt;</code>——于是命令看到的就是普通标准输出，管道、重定向、<code>$?</code> 全部照旧。socket 名带包名（<code>io.github.nanomuse.app.native-offload</code>），被占用时退到每进程一个名字，避免与同装的 OpenMinis 抢同一个抽象命名空间。</li>
+        <li><b>MCP 不直连，走沙箱里的客户端。</b><code>servers.json</code>（<code>/var/minis/mcp-servers/servers.json</code>，Claude Desktop 同格式）是唯一真源，App、文件浏览器、沙箱三方共读一份；真正连服务器的是 guest 里的 <code>minis-mcp-cli</code>（stdio / HTTP / SSE）。系统提示只列前 20 个启用的服务器名与一句 note，具体工具体靠模型自己 <code>minis-mcp-cli tools &lt;server&gt;</code> 去发现。</li>
+        <li><b>Skills 是文件，不是接口。</b><code>SKILL.md</code> 挂在 <code>/var/minis/skills/&lt;id&gt;/</code>，提示里只给名字、最多 1024 字的描述和真实路径；模型需要时才 <code>file_read</code> 读正文。读 <code>SKILL.md</code> 会记一次使用，用于排序与统计。</li>
+        <li><b>闸一：ShellGuard 静态判。</b>把命令按 <code>;</code>、<code>&amp;&amp;</code>、<code>||</code>、换行拆成管道，再按 <code>|</code> 拆成简单命令，剥掉 <code>sudo</code>/<code>env</code>/<code>timeout</code>/<code>nice</code> 这些包装器，只问四件事：<b>删不删、发不发、付不付、装不装</b>。最强的那条结论胜出；<code>sh -c</code>、<code>python -c</code>、heredoc 会递归或按内容判；<code>/tmp</code>、<code>/var/tmp</code>、<code>/dev/shm</code> 里的删除不算。</li>
+        <li><b>闸二：RiskGate 一张卡。</b>六类风险 <code>SAFE / INSTALL / DESTRUCTIVE / OUTBOUND / REMOTE / MONEY</code> 归成三档：安装只通知、删除/外发/远端要确认、付钱最高。五种结局 <code>ALLOW_ONCE / ALLOW_SESSION / ALLOW_ALWAYS / DENY / TIMEOUT</code>；<b>180 秒没人回应按拒绝</b>。付款每次都问，想“记住”必须用锁屏确认，且只能绑定一个对象。</li>
+        <li><b>闸三：OffloadGate 三态。</b>每个 CLI 入口都过同一套 <code>BYPASS / ASK_ONCE / NOT_ALLOWED</code>，授权按聊天会话隔离（<code>MINIS_CHAT_SESSION_ID</code>），换会话不会继承上一次的“本会话允许”。</li>
+        <li><b>屏幕与远端是两种“手”。</b><code>nanomuse-hands</code> 需要四件套：Android 11+、无障碍服务、悬浮窗、一个能看图的模型；感知只有截图，无障碍只做手势、截屏和定位输入框，遇到密码框直接拒绝。<code>nanomuse-pc</code> 让手机指挥账号里的电脑（<code>run / ls / get / put / open / screen</code>），命令同样先过 ShellGuard，卡在手机上弹。</li>
+      </ul>
+
+      <div class="io">
+        <dt>in</dt><dd>模型返回的 <code>tool_call</code>（名字 + JSON 参数）、沙箱里的一条命令、用户的允许/拒绝</dd>
+        <dt>out</dt><dd>结构化结果文本、图片、被改写后的 stdout 与退出码、审批记录</dd>
+        <dt>store</dt><dd><code>mcp.db</code>（会话级启停）、<code>servers.json</code>、<code>/var/minis/skills</code>、<code>offloads/env_*.sh</code>（cookie 等变量文件）、<code>/tmp/.native-offload-*</code>、Grants（记住的授权）</dd>
+      </div>
+    </div>
+    <aside class="aside">
+      <div class="lbl">source map</div>
+      <ul class="src">
+        <li>tools/AgentTools.kt</li>
+        <li>sandbox/NativeOffload.kt</li>
+        <li>sandbox/offload/OffloadGate.kt</li>
+        <li>guard/ShellGuard.kt · RiskGate.kt</li>
+        <li>hands/HandsOperator.kt</li>
+        <li>reach/ReachOffloadHandler.kt</li>
+        <li>data/repository/MCPRepository.kt</li>
+      </ul>
+    </aside>
+  </div>
+
+  <div class="tblwrap">
+    <table>
+      <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
+      <thead><tr><th>类别 / 入口</th><th>做什么</th><th>怎么执行</th><th>闸与落点</th></tr></thead>
+      <tbody>
+        <tr><td>命令 · <code>shell_execute</code></td><td>在 Alpine 里跑任意 <code>/bin/sh -c</code>，stdout/stderr 合并</td><td>会话持久 shell，默认 900s</td><td>ShellGuard → RiskGate；<code>/var/minis/workspace</code></td></tr>
+        <tr><td>文件 · <code>file_read/write/edit</code></td><td>读写工作区、技能、附件、<code>/var/minis/*</code></td><td>Kotlin 直接落盘，路径解析到会话宿主目录</td><td>路径校验；不进 shell，所以不过 ShellGuard</td></tr>
+        <tr><td>图片 · <code>read_image</code></td><td>给模型看图；主模型看不见时转视觉组描述</td><td>进程内 + 视觉组路由</td><td>仅在有视觉能力时出现</td></tr>
+        <tr><td>浏览器 · <code>browser_use</code></td><td>最多 3 个标签页：导航、截图、点击、输入、JS、cookie、<code>hand_over</code> 交还给人</td><td>App 内 WebView 会话</td><td>BrowserGuard；登录/验证码时交给本人</td></tr>
+        <tr><td>记忆 · <code>memory_write/get</code></td><td>写当天日志、按关键词检索 <code>GLOBAL.md</code></td><td>进程内文件</td><td>关闭记忆时 schema 里直接消失</td></tr>
+        <tr><td>设备 · <code>android-*</code>（15 个）</td><td>闹钟、日历、剪贴板、通讯录、设备信息、定位、通知、打开链接、相册、播放器、朗读、语音、天气、无障碍操作、Shizuku 提权</td><td>offload handler，抽象 socket</td><td>OffloadGate 三态；系统权限 + 用户授权</td></tr>
+        <tr><td>内容 · <code>nanomuse-media</code></td><td>用用户的图片/视频模型生成素材</td><td>offload → 厂商 API</td><td>额度与 provider key</td></tr>
+        <tr><td>屏幕 · <code>nanomuse-hands</code></td><td>截图 → 视觉模型 → 一次手势，循环到完成</td><td>无障碍服务做手势；悬浮窗显示进度与停止</td><td>RiskGate（SCREEN）；密码框拒输</td></tr>
+        <tr><td>远端 · <code>nanomuse-pc</code></td><td>在账号内另一台电脑上跑命令、传文件、开网页、截屏</td><td>offload → hub → 对端 Muse</td><td>ShellGuard + 本机审批；<code>REMOTE</code> 档</td></tr>
+        <tr><td>MCP · <code>minis-mcp-cli</code></td><td>发现并调用 MCP 工具（stdio / HTTP / SSE）</td><td>guest 内的 Python 客户端</td><td>servers.json 单一真源；提示只列 Top-20</td></tr>
+        <tr><td>技能 · <code>SKILL.md</code></td><td>按需读入指令包与附带脚本</td><td>只读挂载 + <code>file_read</code></td><td>读一次记一次使用；会话级启停</td></tr>
+        <tr><td>会话/配置/日程 · <code>minis-*</code></td><td>查历史、改设置（带审计与回滚）、建定时任务</td><td>offload handler → SQLite</td><td>配置项白名单</td></tr>
+        <tr><td>备份 · <code>nanomuse-backup</code></td><td>按页面里保存的选择打包与恢复</td><td>offload → 本地或 rclone 远端</td><td>加密包 + 恢复前校验</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 12 · arch</span><span class="ttl">一份 schema，三种执行位置，三道闸</span><span class="rm">24 handlers · 8 builtin</span></div>
+    <div class="canvas arch" data-arch="m12"></div>
+  </figure>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 12 · seq</span><span class="ttl">一次工具调用如何走到 Android 系统</span><span class="rm">execve → socket → cat</span></div>
+    <div class="canvas" data-seq="m12"></div>
+  </figure>
+</section>
+
+<section class="sec mod" id="m13">
+  <div class="modhead">
+    <div class="num">M13</div>
+    <h2>一条任务怎么跑完：回合循环、排队与并行</h2>
+    <p class="role">任务不是“一次请求一次回答”，而是一个最多 200 轮的自循环：每轮问一次模型，模型要工具就执行、把结果回灌，再问；直到它不再要工具。手机端真正的并发单位是<b>会话</b>，不是一个会话里的多条消息。</p>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h3>它管什么</h3>
+      <p>接住三个方向进来的任务（人、定时器、别的设备），决定这一次是立刻跑、排队、还是先压缩上下文；跑的时候维护历史、预算、工具轮与落库；跑不完时留下可恢复的尾巴，而不是把界面卡死。</p>
+
+      <h3>原理</h3>
+      <ul class="pts">
+        <li><b>三个入口，一条循环。</b>① 界面：<code>ChatScreen</code> → <code>ChatViewModel.sendMessage()</code>；② 定时：<code>ScheduledTaskAlarmReceiver</code> → <code>ScheduledAgentRunner</code>，目标分 <code>new</code>（新会话）/ <code>follow-up</code>（追加到旧会话）/ <code>rerun</code>（从某条用户消息重跑）；③ 别的设备：hub 的 <code>task</code> → <code>HeadlessChatRunner</code>，会拿到一张 <code>turn_id</code> 回执。三条最后都进入同一个 <code>runAgentLoop()</code>。</li>
+        <li><b>进门先过三道检查。</b>正在流式 → 不拒也不抢，<b>排进队列</b>（<code>QueuedPrompt</code>，界面上是一条“待发送”气泡）；正在压缩 → 直接回一句“等压缩完成”；上下文接近上限 → 先压缩再发（自动）或弹一句问（手动）。</li>
+        <li><b>一轮干什么。</b><code>for (turn in 0 until MAX_AGENT_TURNS)</code>，上限写死 <b>200</b>。每轮顺序固定：清洗历史 → 确定性裁剪（<code>prepareContext</code>，不改已存的历史）→ 预算检查（超了就<b>就地压缩</b>并把这一轮作废重来）→ 请求模型（流式）→ 有 <code>tool_call</code> 就执行、把 <code>tool_result</code> 回灌 → 模型不再要工具就正常退出。</li>
+        <li><b>撞到上限不是崩，是“可继续”。</b><code>finalizeAtTurnLimit()</code> 把流式标记收掉、写一条说明“到 200 轮停了”，并打开 <code>canResume</code>，人可以接着让它跑；这与“报错”是两种状态。</li>
+        <li><b>落库是增量的，不是最后一次性。</b>流式文本按块追加，工具块一出现就建（<code>tool_start</code> / <code>tool_input</code> / <code>tool_complete</code> 三个通道各自去重），消息与 parts 写进会话库。进程被杀时，<code>InterruptedTailDetector</code> 认得出“半截回复”并给出重试提示。</li>
+        <li><b>多任务有三层，但没有全局调度器。</b>① 会话内：一把 <code>_isStreaming</code> 锁，<b>同一时刻只有一轮</b>；② 跨会话：每个 <code>sessionId</code> 一个 <code>ChatViewModel</code>（共享 <code>ChatViewModelStore</code>），所以两个会话可以同时跑，<code>AgentForegroundService</code> 按 <code>sessionCount</code> 保活，切到后台也不断；③ 跨设备：hub 的任务走 headless 通路，与本机人的对话互不阻塞。</li>
+        <li><b>排队消息在“轮与轮之间”变成新回合，不插进当前轮。</b><code>injectQueuedPromptsAsNewTurn()</code> 在当前助手气泡收尾后开一条新气泡；插不进去（比如已经空转）就退回正常调度，队列不会被一条坏消息卡死。</li>
+        <li><b>停止是显式的。</b>界面 <code>cancelStream()</code>；远端的 <code>stop</code> 带 <code>turn_id</code>；两者都走 <code>HeadlessTurn.stop</code> 的同一套收尾，保证“停了也要把已有部分落库”。</li>
+      </ul>
+
+      <div class="io">
+        <dt>in</dt><dd>一句话 / 一个定时触发 / 别的设备转来的一整件事；当前会话的历史、技能与 MCP 摘要、记忆片段</dd>
+        <dt>out</dt><dd>一条条流式文本、工具块（命令、输出、耗时、批准）、可恢复标记、<code>turn_id</code> 回执</dd>
+        <dt>store</dt><dd>会话库（消息 + parts + 时间线）、<code>/var/minis/workspace</code>（工具产物）、<code>PersistentTaskEndpoint</code>（回合状态，供 <code>task.status</code> 查）</dd>
+      </div>
+    </div>
+    <aside class="aside">
+      <div class="lbl">source map</div>
+      <ul class="src">
+        <li>ui/chat/ChatViewModel.kt</li>
+        <li>data/repository/ChatRepository.kt</li>
+        <li>debug/HeadlessChatRunner.kt</li>
+        <li>hub/HeadlessTurn.kt</li>
+        <li>hub/PersistentTaskEndpoint.kt</li>
+        <li>scheduled/ScheduledAgentRunner.kt</li>
+        <li>service/AgentForegroundService.kt</li>
+        <li>agent/InterruptedTailDetector.kt</li>
+      </ul>
+    </aside>
+  </div>
+
+  <div class="tblwrap">
+    <table>
+      <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
+      <thead><tr><th>并行维度</th><th>有没有</th><th>边界</th><th>靠什么实现</th></tr></thead>
+      <tbody>
+        <tr><td>同一会话里并发</td><td>没有</td><td>一次只跑一轮；期间新消息排队，不丢不抢</td><td><code>_isStreaming</code> + <code>QueuedPrompt</code></td></tr>
+        <tr><td>不同会话之间</td><td>有</td><td>各自一个 VM、各自一条流；界面一次只看一个</td><td>每 <code>sessionId</code> 一个 <code>ChatViewModel</code></td></tr>
+        <tr><td>后台 / 息屏继续跑</td><td>有</td><td>由前台服务保活，通知里显示在跑几个会话</td><td><code>AgentForegroundService</code></td></tr>
+        <tr><td>别的设备派来的任务</td><td>有</td><td>独立会话 + 回执；与本机对话并行</td><td><code>HeadlessChatRunner</code> + <code>turn_id</code></td></tr>
+        <tr><td>全局队列 / 优先级 / 抢占</td><td>没有</td><td>不排队等资源、不迁移任务、不派生“子 Agent”</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 13 · arch</span><span class="ttl">一条任务从入站到落库</span><span class="rm">3 入口 · 每会话 1 轮</span></div>
+    <div class="canvas arch" data-arch="m13"></div>
+  </figure>
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 13 · seq</span><span class="ttl">一轮任务里的多次工具往返</span><span class="rm">≤200 turns · 900s</span></div>
+    <div class="canvas " data-seq="m13"></div>
+  </figure>
+</section>
+
+<section class="sec mod" id="m14">
+  <div class="modhead">
+    <div class="num">M14</div>
+    <h2>互操作：MCP、Agent 到 Agent、App 能力</h2>
+    <p class="role">模型要够到三种外部世界：MCP 服务器、账号里的其它设备、这台手机的系统能力。三者的入口、契约与边界完全不同，混在一起讲最容易失真——分开看，它们各自只有一句话。</p>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h3>它管什么</h3>
+      <p>把“模型想做的事”接到正确的外部世界，并在接上去之前把边界说清楚：MCP 走沙箱里的客户端、设备之间走 hub 的 RPC、系统能力走命令行。它不定义新协议，只决定每种能力用哪条既有通道。</p>
+
+      <h3>原理</h3>
+      <ul class="pts">
+        <li><b>MCP 的契约是“配置 + 命令行”，不是 schema。</b><code>servers.json</code>（<code>/var/minis/mcp-servers/servers.json</code>，Claude Desktop 同格式）是唯一真源，支持 <code>command</code>（stdio）、<code>url</code>（HTTP/SSE）、<code>env</code>、<code>headers</code>、启动超时；<code>MCPRepository</code> 负责解析、导入导出、启停，并按会话记一份覆盖（<code>mcp.db</code>），换会话不继承。OAuth 令牌单独存在 <code>McpOAuthTokens</code> 里，不进配置文件。</li>
+        <li><b>MCP 不在工具表里，是为了省上下文。</b>系统提示只列前 20 个启用服务器的名字和一句 note；真正的工具发现与调用由 guest 里的 <code>minis-mcp-cli</code> 完成（<code>tools &lt;server&gt;</code> 列表、<code>call</code> 传 JSON）。好处是几百个 MCP 工具不占 schema；代价是模型要多敲一次命令。</li>
+        <li><b>设备之间是自建 RPC，不是标准 A2A。</b>hub 的动作表是固定的 13 项：<code>info / shell / files / file.get / file.put / open / screen / notify / task / task.status / approve / stop / approve.any</code>。前八项是<b>能力级</b>（在对方机器上跑一条命令、读写一个文件、开一个链接、截一张屏），<code>task</code> 是<b>任务级</b>：把一整件事用自然语言交给对面的 Agent，在对面开一个新会话跑，事件流式回传。</li>
+        <li><b>审批留在执行侧，不留在发起侧。</b>别的设备要动这台手机，<code>RiskGate</code> 会在<b>这台手机</b>上弹 <code>REMOTE</code> 卡，授权绑定对方设备 id（“只允许 Desk 这一台”），可一次、可始终；连 <code>task</code> 跑起来以后的每一步工具调用，也仍然走本机自己的闸。总开关是“允许被其它设备操作”，关掉后除 <code>info</code> 全部拒绝。</li>
+        <li><b>任务级转交有回执，也有终止。</b><code>task</code> 返回 <code>turn_id</code>，之后可以用 <code>task.status</code> 查进度、<code>stop</code> 取消、<code>approve</code> 代答本机卡片（<code>approve.any</code> 是“任意设备都能答”的变体）。单次调用超时 10 分钟，比 shell 的 900 秒更宽，因为它包的是一整轮任务。</li>
+        <li><b>反向也有：手机当指挥端。</b><code>nanomuse-pc</code>（<code>reach</code>）把账号里的电脑列进提示，手机可以 <code>run / ls / get / put / open / screen</code>，甚至把整件事用 <code>task</code> 甩给电脑；这正是 A2A 的双向形态，只是没有协议文档，只有一张动作表。</li>
+        <li><b>App 能力没有走 App Functions API，走的是 PATH。</b>代码里没有任何 <code>AppFunction</code> 适配层；15 个 <code>android-*</code>（闹钟、日历、剪贴板、通讯录、设备、定位、通知、打开、相册、播放器、朗读、语音、天气、无障碍、Shizuku）和 5 个 <code>minis-*</code>（打开、会话、模型、配置、定时）都是 <b>CLI</b>：<code>--help</code> 是文档、stdout 是 JSON、权限不足回 <code>permission_denied</code>。它们靠 <code>/usr/local/bin</code> 里的 17 字节 stub + execve 改写接到 Kotlin handler。</li>
+        <li><b>这套选择的代价很明确。</b>零 schema 成本、任意组合、和 shell 天然一致（管道、<code>$?</code>、重定向都能用）；但模型必须先读 <code>--help</code>，参数校验靠 CLI 自己，错误只能从 JSON 里读。这是“用文档换上下文”的交易。</li>
+      </ul>
+
+      <div class="io">
+        <dt>in</dt><dd>模型的一条 <code>minis-mcp-cli</code> 命令、另一台设备的一次 RPC、一条 <code>android-*</code> 调用</dd>
+        <dt>out</dt><dd>MCP 工具的结构化结果、流式任务事件（文本 / 工具 / 审批）、系统能力的 JSON 或一行文本</dd>
+        <dt>store</dt><dd><code>servers.json</code>、<code>mcp.db</code>（会话级启停）、<code>McpOAuthTokens</code>、hub 设备表与任务回执、Grants（按设备 id 的授权）</dd>
+      </div>
+    </div>
+    <aside class="aside">
+      <div class="lbl">source map</div>
+      <ul class="src">
+        <li>data/repository/MCPRepository.kt</li>
+        <li>connectors/McpOAuthTokens.kt</li>
+        <li>hub/HubActions.kt · HubTasks.kt</li>
+        <li>hub/PersistentTaskEndpoint.kt</li>
+        <li>reach/ReachOffloadHandler.kt</li>
+        <li>sandbox/offload/*OffloadHandler.kt</li>
+        <li>MinisApp.kt（handler 注册）</li>
+      </ul>
+    </aside>
+  </div>
+
+  <div class="tblwrap">
+    <table>
+      <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
+      <thead><tr><th>通道</th><th>契约</th><th>谁真正执行</th><th>边界与代价</th></tr></thead>
+      <tbody>
+        <tr><td>MCP</td><td><code>servers.json</code> + <code>minis-mcp-cli</code> 子命令</td><td>guest 里的 Python 客户端连服务器</td><td>不占 schema；要先发现工具，提示只列 Top-20</td></tr>
+        <tr><td>Agent 到 Agent（被控）</td><td>hub 13 个动作；<code>task</code> 带整段任务与 <code>turn_id</code></td><td>本机 <code>HeadlessChatRunner</code> 跑一个新会话</td><td>审批在本机弹；总开关可一刀关；10 分钟超时</td></tr>
+        <tr><td>Agent 到 Agent（主控）</td><td><code>nanomuse-pc</code>：run / ls / get / put / open / screen / task</td><td>对端 Muse 的 hub 服务 + 它自己的闸</td><td>命令先过本机 ShellGuard，再在对面过一道</td></tr>
+        <tr><td>App 能力</td><td><code>android-*</code> / <code>minis-*</code> 的 CLI（<code>--help</code> + JSON）</td><td>Kotlin offload handler → 系统 API</td><td>零 schema；参数校验与错误处理靠文档；权限靠系统与用户授权</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 14 · arch</span><span class="ttl">三条互操作通道</span><span class="rm">13 actions · MCP · CLI</span></div>
+    <div class="canvas arch" data-arch="m14"></div>
+  </figure>
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 14 · seq</span><span class="ttl">Agent 到 Agent：整件事的转交</span><span class="rm">task + turn_id · 10 min</span></div>
+    <div class="canvas " data-seq="m14"></div>
+  </figure>
+</section>
+
+<section class="sec mod" id="m15">
+  <div class="modhead">
+    <div class="num">M15</div>
+    <h2>Harness 的模块清单，与把它搬出 Android</h2>
+    <p class="role">端上的 Agent Harness 不是“一个循环 + 几个工具”，而是十四块彼此咬合的部件：会话、提示、预算、模型、工具、闸、沙箱、互操作、保活、观测。想把这套 runtime 搬到别的宿主，能搬的是其中十一块，搬不动的是 Android 给的那三样东西。</p>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h3>它管什么</h3>
+      <p>把“模型 + 工具 + 文件 + 闸”组织成一台能连续干活的机器：谁持有会话、谁装配提示、谁管预算、谁执行、谁批准、谁保活、谁记录。模块之间的依赖是单向的——上层知道下层，下层不知道上层。</p>
+
+      <h3>组织方式</h3>
+      <ul class="pts">
+        <li><b>进程：一个 APK，四条线程面。</b>主线程只做 UI；<code>Dispatchers.IO</code> 跑回合循环与流式解析；沙箱进程（proot + Alpine）在独立 OS 进程里；offload server 是一条本地 socket 线程。它们之间没有共享内存，只有文件、socket 和回调。</li>
+        <li><b>服务：保活与可见性。</b><code>AgentForegroundService</code> 在跑任务时把进程钉在前台，通知里写“正在跑几个会话、当前在干什么”；<code>ScheduledTaskAlarmReceiver</code> 用系统闹钟唤醒，不依赖进程常驻。</li>
+        <li><b>VM：会话是状态边界。</b>一个 <code>sessionId</code> 一个 <code>ChatViewModel</code>，历史、<code>_isStreaming</code>、队列、草稿、附件都在这层；UI 只是它的一个观察者，headless 通路是另一个观察者，二者共享同一个实例（否则会出现“后台在跑、前台看不到”）。</li>
+        <li><b>依赖方向是单向的。</b>UI → VM →（提示 ∥ provider）→ 工具 → 闸 → 沙箱 / offload → 文件与库。反过来只有事件回调（流式块、审批结果），没有下层直接调 UI。</li>
+        <li><b>可搬的十一块。</b>回合循环、上下文维护、提示装配、provider 调用与 SSE 解析、工具 schema 与文件类工具、三道闸、offload 注册表、hub 客户端、定时、保活抽象、观测。它们只依赖 JDK + HTTP + JSON。</li>
+        <li><b>搬不动的三块。</b>① <b>execve 改写</b>——它依赖 proot 的扩展点，普通宿主没有这个钩子；② <b>Android 系统能力</b>——无障碍、Shizuku、通知、相册、SAF 目录授权；③ <b>WebView 浏览器</b>——<code>browser_use</code> 的标签页、cookie、截图都长在 Android WebView 上。</li>
+        <li><b>替代方案要成对出现。</b>沙箱换 <code>bwrap</code>（Linux）或 <code>sandbox-exec</code>（macOS）或容器；execve 钩子换成“PATH 里放同名 wrapper 脚本，脚本 curl 本地端口”——语义上等价于 offload，只是多一次进程启动；WebView 换成 Playwright；系统能力换成一个 <code>DeviceBridge</code> 空实现，缺哪补哪。</li>
+        <li><b>分期比一次性搬更现实。</b>M0 冒烟（provider + 一轮循环 + 文件读写），M1 工具与闸（含 shell），M2 上下文与压缩，M3 互操作（MCP / A2A / 设备桥），M4 保活与观测。<b>先让“一句话 + 一次 shell”跑通，再谈沙箱隔离</b>——顺序反了会一直在修沙箱，而不是在修 Agent。</li>
+      </ul>
+
+      <div class="io">
+        <dt>in</dt><dd>一份 Android 源码树（<code>android/src/android/app/src/main/java</code>，727 个 Kotlin 文件、约 22.9 万行）</dd>
+        <dt>out</dt><dd>一个可运行的宿主进程：能接任务、装配提示、调模型、执行工具、弹审批、落库</dd>
+        <dt>store</dt><dd>宿主自己的会话库与工作目录；<code>/var/minis</code> 这层语义建议保留（workspace / memory / skills / shared / attachments / mounts），它是所有路径约定的锚点</dd>
+      </div>
+    </div>
+    <aside class="aside">
+      <div class="lbl">source map</div>
+      <ul class="src">
+        <li>ui/chat/ChatViewModel.kt（12,820 行）</li>
+        <li>chat/*（25 文件 2,159 行）</li>
+        <li>provider/*（29 文件 10,971 行）</li>
+        <li>tools/*（9 文件 1,278 行）</li>
+        <li>guard/*（16 文件 1,767 行）</li>
+        <li>sandbox/*（37 文件 15,660 行）</li>
+        <li>hub/*（12 文件 1,824 行）</li>
+        <li>data/*（59 文件 13,304 行）</li>
+      </ul>
+    </aside>
+  </div>
+
+  <div class="tblwrap">
+    <table>
+      <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
+      <thead><tr><th>模块</th><th>主要代码</th><th>规模</th><th>搬出去要做什么</th></tr></thead>
+      <tbody>
+        <tr><td>回合循环</td><td><code>ui/chat/ChatViewModel.kt</code></td><td>12,820 行</td><td>抽 <code>runAgentLoop</code> / 分派 / 提示装配，剥掉 Compose 与 <code>Context</code>；最大的一块工作量</td></tr>
+        <tr><td>上下文维护</td><td><code>chat/*</code>（裁剪、压缩、预算、缓存布局）</td><td>2,159 行</td><td>基本可原样搬，只有存储接口要换</td></tr>
+        <tr><td>模型调用</td><td><code>provider/*</code>（OpenAI / Anthropic / SSE 解析）</td><td>10,971 行</td><td>保留解析与重试，换 HTTP 客户端与 key 存储</td></tr>
+        <tr><td>工具与闸</td><td><code>tools/*</code> + <code>guard/*</code></td><td>3,045 行</td><td>直接搬；路径从 <code>/var/minis</code> 改成宿主根目录，Grants 换 JSON/SQLite</td></tr>
+        <tr><td>沙箱</td><td><code>sandbox/*</code>（PRoot、持久 shell、协调器）</td><td>15,660 行</td><td>只保留接口与超时/串行语义；实现换 bwrap / 本地进程 / 容器</td></tr>
+        <tr><td>设备能力</td><td><code>offload/*</code> + 24 个 handler</td><td>2,344 行起</td><td>改成宿主能力（读文件、截图、通知），缺的留空实现</td></tr>
+        <tr><td>互操作</td><td><code>hub/*</code></td><td>1,824 行</td><td>RPC 传输换 HTTP/WS；动作表与审批语义保留</td></tr>
+        <tr><td>存储</td><td><code>data/*</code>（会话、消息、parts、MCP、技能）</td><td>13,304 行</td><td>SQLite 表结构可照搬；换成宿主可用的驱动即可</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 15 · arch</span><span class="ttl">可移植内核与平台适配</span><span class="rm">11 可搬 · 3 不可搬</span></div>
+    <div class="canvas arch" data-arch="m15"></div>
+  </figure>
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 15 · seq</span><span class="ttl">移植顺序：先跑通一句话 + shell</span><span class="rm">M0 → M3</span></div>
+    <div class="canvas " data-seq="m15"></div>
+  </figure>
+</section>
+
+<section class="sec mod" id="m16">
+  <div class="modhead">
+    <div class="num">M16</div>
+    <h2>抽出来：把端侧 runtime 做成一个没有界面的后台组件</h2>
+    <p class="role">要的不是“手机 App 的一份拷贝”，而是它里面那个能连续干活的核：一个进程接一个任务，装配提示、调模型、跑工具、过闸、吐事件、落盘。界面、通知、WebView、无障碍全都不进来。</p>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h3>它管什么</h3>
+      <p>以库或进程的形式被调用：给一个任务与会话 id，它自己跑完 200 轮以内的循环，把每一步变成结构化事件，把结果落到会话库；中途要人点头时向外发一条审批请求，没人答就按拒绝走。</p>
+
+      <h3>为什么抽得出来</h3>
+      <ul class="pts">
+        <li><b>循环本身不依赖 UI。</b><code>runAgentLoop()</code> 只用到六样东西：provider、历史消息、工具表、闸、沙箱、落库与事件回调。Android 里它们被塞在 12,820 行的 <code>ChatViewModel</code> 里，旁边还挂着 Compose 状态、气泡、滚动、附件、草稿——抽的动作就是把这六样收进一个 <b>SessionState</b>，把其余留在 UI。</li>
+        <li><b>已经有先例。</b><code>HeadlessChatRunner</code> 就是“不开界面跑一轮”的现有实现：它按 <code>sessionId</code> 取到同一个 VM，直接调 <code>prompt()</code>，事件走回调。这说明无界面运行在架构上是成立的，只是还借用了 VM 这层壳。</li>
+        <li><b>抽走的边界是三个接口，不是一堆文件。</b><b>Sandbox</b>（执行 + 超时 + 串行）、<b>ApprovalGate</b>（问人 + 超时即拒绝）、<b>EventSink</b>（结构化事件）。Android 侧分别是 proot 持久 shell、RiskGate 卡片、ChatViewModel 的流式回调；换宿主只换这三个。</li>
+        <li><b>能带走的是七样。</b>循环、工具表与四个基础工具、静态闸、provider 客户端、会话存储、事件写盘、审批策略——这些只依赖 JDK、HTTP 与 JSON，我在本机用 Kotlin 2.0.21 + JDK 11 编出了可执行 jar，跑通了冒烟。</li>
+        <li><b>带不走的是三样。</b>proot 的 execve 钩子（决定 24 个 <code>android-*</code> handler 怎么被“看见”）、Android 系统能力（无障碍、Shizuku、通知、相册）、WebView。后台形态里它们要么换成宿主能力，要么留空。</li>
+        <li><b>后台形态下，并发模型反而更简单。</b>一个会话一个 <code>SessionRuntime</code>（单飞行 + 队列），多会话用线程池；取消是一个中断位，不需要 Compose 的协程作用域。默认超时照旧：shell 900s、审批 180s、回合 200。</li>
+        <li><b>事件是唯一的输出面。</b>一行一个 JSON（<code>turn_start / turn / text / tool_start / tool_result / approval / loop_detected / done / error</code>），可以直接 <code>tail -f</code>，也可以在前面套一层 SSE 或 WebSocket 给上层 UI。这样“要不要界面”不再影响内核。</li>
+        <li><b>冒烟跑的是真链路。</b>脚本化模型端点 → 第 1 轮 <code>file_write</code> 落盘 → 第 2 轮 <code>shell_execute</code> 读到两行 → 第 3 轮收尾；另一场景把命令换成 <code>rm -rf</code>，闸判 <code>DESTRUCTIVE</code>，无人应答即 <code>TIMEOUT</code>，工具返回错误而不是执行。3 轮 / 360 prompt tokens / 243ms。</li>
+        <li><b>接回真模型只需换一个类。</b>骨架里的 provider 是非流式的一次调用；Android 原实现是 SSE 增量 + <code>tool_call</code> 按 index 拼装。接口已经留了 <code>onText</code> 回调，补上增量解析即可，循环与工具层不用动。</li>
+      </ul>
+
+      <div class="io">
+        <dt>in</dt><dd>一个任务文本 + 会话 id + 工作根；模型端点与 key</dd>
+        <dt>out</dt><dd>NDJSON 事件流、最终文本、轮数与 token 用量、退出码</dd>
+        <dt>store</dt><dd>工作区 <code>workspaces/&lt;session&gt;/</code>、会话 <code>sessions/&lt;session&gt;.jsonl</code>、事件 <code>events/&lt;session&gt;.ndjson</code></dd>
+      </div>
+    </div>
+    <aside class="aside">
+      <div class="lbl">source map</div>
+      <ul class="src">
+        <li>core/Contracts.kt（六个接口）</li>
+        <li>core/AgentLoop.kt（200 轮）</li>
+        <li>tools/BuiltinTools.kt（4 个）</li>
+        <li>guard/ShellGuard.kt（四问 + 超时）</li>
+        <li>host/LocalProcessSandbox.kt</li>
+        <li>host/Stores.kt（JSONL）</li>
+        <li>host/OpenAiProvider.kt</li>
+        <li>Main.kt（CLI 入口）</li>
+        <li>tools/fake_model.py（冒烟）</li>
+      </ul>
+    </aside>
+  </div>
+
+  <div class="tblwrap">
+    <table>
+      <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
+      <thead><tr><th>组件</th><th>Android 原实现</th><th>本骨架（已编译运行）</th><th>换宿主时改什么</th></tr></thead>
+      <tbody>
+        <tr><td>回合循环</td><td><code>ChatViewModel.runAgentLoop</code>（12.8k 行里的一段）</td><td><code>AgentLoop.kt</code>，200 轮 + 打转检测</td><td>不用改；只把 UI 状态从循环里剔掉</td></tr>
+        <tr><td>工具</td><td><code>tools/*</code>：shell / 读 / 写 / 改 / 图 / 浏览器 / 记忆</td><td>shell + 读 + 写 + 改（4 个）</td><td>按需加 <code>Tool</code> 实现，spec 与执行分开</td></tr>
+        <tr><td>闸</td><td><code>ShellGuard</code> 四问 + <code>RiskGate</code> 三档</td><td>正则四问 + 命令行审批（超时拒绝）</td><td>换审批通道；判定口径保留</td></tr>
+        <tr><td>沙箱</td><td>proot + Alpine 持久 shell，900s</td><td><code>LocalProcessSandbox</code>：进程 + 超时强杀</td><td>换 bwrap / 容器；接口不变</td></tr>
+        <tr><td>存储</td><td>SQLite：messages + parts + 时间线</td><td>JSONL：一行一条消息 + meta</td><td>换数据库；表结构可照搬</td></tr>
+        <tr><td>模型</td><td>provider/*：SSE 增量 + tool_call 拼装</td><td>OpenAI 兼容，非流式</td><td>补 SSE 解析；<code>onText</code> 已在</td></tr>
+        <tr><td>设备能力</td><td>24 个 offload handler（execve 改写）</td><td>无；留 <code>Tool</code> 扩展点</td><td>宿主机能力包成 CLI 或直接 Tool</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 16 · arch</span><span class="ttl">无界面 runtime：三个接口把内核与宿主隔开</span><span class="rm">7 可搬 · 3 换实现</span></div>
+    <div class="canvas arch" data-arch="m16"></div>
+  </figure>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate 16 · seq</span><span class="ttl">一次后台运行：写文件、被闸拦下、再收尾</span><span class="rm">3 turns · 243ms</span></div>
+    <div class="canvas" data-seq="m16"></div>
+  </figure>
+</section>
+
+<section class="sec" id="data">
+  <div class="modhead">
+    <div class="num">D</div>
+    <h2>数据怎么流转，怎么存</h2>
+    <p class="role">把前面十六层叠起来看一次完整往返：一条消息从屏幕出发，经过调度、提示装配、模型、闸门、工具，最后变成三个文件的增量与两行审计；如果它跨设备，还会多出一段中继路由。下面这张总时序图可以逐步播放。</p>
+  </div>
+
+  <figure class="plate">
+    <div class="phead"><span class="tag">plate D · seq</span><span class="ttl">一轮对话的总视图（桌面 Python 运行时）</span><button class="play" id="playMaster" aria-pressed="false">逐步播放</button></div>
+    <div class="canvas" data-seq="master"></div>
+    <div class="legend"><span><i></i>请求 / 调用</span><span><i class="d"></i>返回 / 事件</span><span><i class="a"></i>审批</span><span>标号即播放顺序</span></div>
+  </figure>
+
+  <div class="grid" style="margin-top:34px">
+    <div>
+      <h3>三条通道，各走各的</h3>
+      <ul class="pts">
+        <li><b>REST <code>/api</code>：</b>命令与状态。发消息、改设置、答审批、取文件。同步阻塞，返回 JSON。</li>
+        <li><b>WebSocket：</b>事件流。文本增量、工具步骤、审批卡、artifact、状态变化。只向前端推，不承载命令。</li>
+        <li><b><code>/v1/hub</code>：</b>设备间帧。动作、任务、进度、审批、profile 与同步提示。出站连接，中继只路由。</li>
+        <li><b>第四条是隐性的：</b>模型请求。本地运行时直连你配置的端点，或经中继的 <code>/v1/chat/completions</code>；这条路上走的是提示词全文，所以它决定“什么离开了设备”。</li>
+      </ul>
+
+      <h3>一次写的顺序</h3>
+      <p>用户消息先入会话文件与审计，再进模型窗口；模型回复先成为内存消息，再流给前端，最后随会话原子落盘。工具结果先过脱敏，再进消息。审批卡先写时间线，再挂起 future。<b>没有跨库的强事务</b>：时间线与会话文件是两份独立快照，靠轮次与合并规则保持一致。</p>
+    </div>
+    <aside class="aside">
+      <div class="lbl">invariants</div>
+      <ul class="src">
+        <li>会话文件：临时文件 + fsync + rename</li>
+        <li>时间线：新版覆盖旧版，关闭时 flush</li>
+        <li>投递：source_key 唯一，先 claim 再发</li>
+        <li>同步：seq 单调，客户端持 cursor</li>
+        <li>审批：未答复超时即拒绝</li>
+      </ul>
+    </aside>
+  </div>
+
+  <h3 style="margin-top:34px">存储地图：哪一层写哪个文件</h3>
+  <div class="tblwrap">
+    <table>
+      <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"><col class="c5"></colgroup>
+      <thead><tr><th>层</th><th>载体</th><th>表 / 文件</th><th>写入者</th><th>生命周期</th></tr></thead>
+      <tbody>
+        <tr><td>M03 会话</td><td class="mono">JSON（原子替换）</td><td class="mono">sessions/&lt;sid&gt;.session.json<br>threads/&lt;tid&gt;.session.json</td><td>MuseAgent._save_session</td><td>直到会话删除</td></tr>
+        <tr><td>M08 时间线</td><td class="mono">JSON</td><td class="mono">threads/&lt;tid&gt;.json<br>threads/index.json</td><td>WebUI / Timeline</td><td>随会话；重启修正状态</td></tr>
+        <tr><td>M07 记忆</td><td class="mono">SQLite</td><td class="mono">memory.db：memories, memory_log, memory_meta, memory_vectors</td><td>remember / forget / consolidate</td><td>长期；日志可回滚</td></tr>
+        <tr><td>M07 目标</td><td class="mono">SQLite</td><td class="mono">goals.db：goals, steps</td><td>Goals 工具 / 后台推进</td><td>长期</td></tr>
+        <tr><td>M07 提醒</td><td class="mono">SQLite</td><td class="mono">reminders.db：reminders</td><td>Reminders 工具</td><td>长期</td></tr>
+        <tr><td>M07 触发</td><td class="mono">SQLite</td><td class="mono">triggers.db：triggers, fired, meta</td><td>Triggers 工具</td><td>长期；fired 防重</td></tr>
+        <tr><td>M08 投递</td><td class="mono">SQLite</td><td class="mono">scheduled_deliveries</td><td>outbox.claim()</td><td>完成行保留作幂等键</td></tr>
+        <tr><td>M06 授权</td><td class="mono">JSON</td><td class="mono">approvals.json</td><td>GrantStore</td><td>24h / 始终；可撤销</td></tr>
+        <tr><td>M06 审计</td><td class="mono">JSONL</td><td class="mono">audit.jsonl</td><td>AuditLog.record()</td><td>追加，无自动清理</td></tr>
+        <tr><td>M06 保险库</td><td class="mono">Fernet 加密</td><td class="mono">vault.enc + vault.key（0600）</td><td>CredentialVault</td><td>直到删除；key 在盘上</td></tr>
+        <tr><td>M05 产物</td><td class="mono">文件系统</td><td class="mono">workspace/、screenshots/、附件目录</td><td>工具 / 上传</td><td>随用户清理</td></tr>
+        <tr><td>M09 手部轨迹</td><td class="mono">JSONL + PNG</td><td class="mono">phone-traces/pt-…jsonl；最近 200 条 / 400 张截图</td><td>phone operator</td><td>滚动淘汰</td></tr>
+        <tr><td>M01 手机同步</td><td class="mono">Room</td><td class="mono">nanomuse_sync.db：sync_conversations, sync_messages, sync_meta, session_owners</td><td>Android SyncStore</td><td>直到登出 / 清理</td></tr>
+        <tr><td>M01 桌面</td><td class="mono">目录</td><td class="mono">~/.nanomuse/desktop/{profiles, sessions, hands.json, rooms.json, port}</td><td>dsh Host + 插件</td><td>随安装</td></tr>
+        <tr><td>M13 回合</td><td class="mono">JSON / SQLite</td><td class="mono">会话库 messages + parts<br>PersistentTaskEndpoint.turn_id</td><td>ChatViewModel / HeadlessChatRunner</td><td>消息永久；回执随任务结束关闭，供 <code>task.status</code> 查</td></tr>
+        <tr><td>M14 设备</td><td class="mono">预置项 / JSON</td><td class="mono">hub 设备表 · grants.json（按 device id 绑定）</td><td>Hub / RiskGate</td><td>设备配对期间；撤销授权即刻失效</td></tr>
+        <tr><td>M11 沙箱</td><td class="mono">目录</td><td class="mono">filesDir/alpine-rootfs<br>nativeLibDir（proot + loader）<br>/var/minis/{workspace,memory,skills,shared,attachments,offloads,mcp-servers,mounts}</td><td>RootfsManager / PRootKernel</td><td>随 App；rootfs 升级时重解，绑定目录是宿主真实目录</td></tr>
+        <tr><td>M12 授权</td><td class="mono">JSON</td><td class="mono">minis-global/nanomuse/grants.json</td><td>RiskGate 的“始终允许”</td><td>直到在权限页撤销；会话级授权只在内存，进程退出即失效</td></tr>
+        <tr><td>M10 中继</td><td class="mono">SQLite</td><td class="mono">accounts, api_keys, codes, ledger, devices, profiles, sync_conversations, sync_messages, sync_cursors, turns, blobs, calls, client_events</td><td>cloud service</td><td>按开关与保留期删除</td></tr>
+        <tr><td>内存态</td><td class="mono">RAM</td><td class="mono">taint、pending approvals、hub pending calls、working 提示</td><td>Sentinel / Hub</td><td>重启即失</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:34px">数据边界：什么会离开这台设备</h3>
+  <div class="tblwrap">
+    <table>
+      <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"><col class="c5"></colgroup>
+      <thead><tr><th>数据</th><th>去哪里</th><th>默认</th><th>可关吗</th><th>备注</th></tr></thead>
+      <tbody>
+        <tr><td>提示词全文（含记忆、技能）</td><td>你配置的模型端点</td><td><span class="tagbox">总是</span></td><td>换成自建 / 本地模型</td><td>记忆与人格都进系统提示</td></tr>
+        <tr><td>会话文本</td><td>中继 sync 库</td><td><span class="tagbox a">开启</span></td><td>是，一处关闭即清空</td><td>不含文件与图片，只含名称与大小</td></tr>
+        <tr><td>整轮请求与响应</td><td>中继 turns / blobs</td><td><span class="tagbox r">官方中继开启</span></td><td><code>RECORD_TURNS=0</code></td><td>自建中继可完全关闭</td></tr>
+        <tr><td>审批决定、停止原因</td><td>中继 client_events</td><td><span class="tagbox a">代码与数字</span></td><td>随轮次删除</td><td>不含消息内容</td></tr>
+        <tr><td>记忆向量</td><td>embedding 端点</td><td>取决于配置</td><td>用本地 Ollama</td><td>每条记忆与消息各一次</td></tr>
+        <tr><td>保险库明文</td><td>不出设备</td><td><span class="tagbox b">否</span></td><td>—</td><td>只在连接器构造时替换</td></tr>
+        <tr><td>文件与截图</td><td>留在本机</td><td><span class="tagbox b">否</span></td><td>—</td><td>跨 hub 时按 base64 走帧，不落中继</td></tr>
+        <tr><td>设备名与在线状态</td><td>中继 devices</td><td><span class="tagbox a">是</span></td><td>登出即撤销</td><td>用于设备列表与路由</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note"><b>一句话总结存储策略：</b>会话与时间线是“每会话一份的文件快照”，长期状态是“四个职责单一的 SQLite”，跨设备是“中继上的文本副本加本机的原文件”，而凭据与审计是“只进不出”。这套设计换来的不是强一致，而是可解释：任何一个数字都能在某个文件或某张表里找到出处。</div>
+
+  <div class="grid" style="margin-top:30px">
+    <div>
+      <h3>这套结构的代价</h3>
+      <ul class="pts">
+        <li><b>同进程闸门不是 VM 隔离。</b>Sentinel 与 Agent 在同一个进程里；在没有 bubblewrap 的平台上，被批准的 <code>shell</code> 拥有与你相同的权限。项目文档自己写明了这一点。</li>
+        <li><b>三份状态需要对齐。</b>会话 JSON、时间线 JSON、同步库各自演进，靠轮次 id、消息 id 与 cursor 对齐；断网与重启的边角情况是测试重点。</li>
+        <li><b>桌面是两个运行时的拼装。</b>dsh 负责循环与界面，Python 负责手；一处配置错位（<code>NANOMUSE_PY</code>、MCP 挂载）就会表现为“手不见了”。</li>
+      </ul>
+    </div>
+    <aside class="aside">
+      <div class="lbl">honest limits</div>
+      <ul class="src">
+        <li>docs/sentinel.md › What this does and does not protect against</li>
+        <li>docs/privacy.md</li>
+        <li>docs/runtime-budgets.md</li>
+      </ul>
+    </aside>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="lbl" style="font:500 10px/1 var(--mono);letter-spacing:.1em;color:var(--muted)">sources</div>
+    <ol>
+      <li>仓库：<a href="https://github.com/nano-muse/nanoMuse">github.com/nano-muse/nanoMuse</a>（GPL-3.0-or-later，main 分支，3745 个受版本控制文件）</li>
+      <li>架构与协议：<a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/architecture.md">docs/architecture.md</a>、<a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/hub.md">docs/hub.md</a>、<a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/cloud.md">docs/cloud.md</a>、<a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/sentinel.md">docs/sentinel.md</a>、<a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/gui.md">docs/gui.md</a></li>
+      <li>论文：<a href="https://arxiv.org/abs/2610.08699">nanoMuse: An Open-Source Personal Agent for Every Device You Own</a>（Liu, Liu, Zhang，浙江大学）</li>
+    </ol>
+    <p>图表由页面内自绘 SVG 生成，不依赖外部图表库；线条与位置按各模块真实调用关系绘制，未画出的分支以正文说明为准。报告日期 2026-11-12。</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var uid=0;
+  var TONE={
+    client:{fill:'#E3EBF0',line:'#9AAEB9',bar:'#0B5C8A'},
+    core:{fill:'#DAE7F0',line:'#8FA9BC',bar:'#0B5C8A'},
+    exec:{fill:'#E0EDE8',line:'#93B4A8',bar:'#0F6E5C'},
+    data:{fill:'#EEE6D7',line:'#C2AD8B',bar:'#A9660F'},
+    ext:{fill:'#E8EAEC',line:'#AEB4BA',bar:'#5A6975'},
+    risk:{fill:'#F0E2DF',line:'#C7A39D',bar:'#96271F'}
+  };
+  var KIND={person:'#0E1A22',app:'#0B5C8A',core:'#0B5C8A',store:'#0F6E5C',ext:'#5A6975',risk:'#A9660F'};
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function tw(str,size){var w=0;for(var i=0;i<str.length;i++){var c=str.charCodeAt(i);w+= (c>12287? size : size*0.56);}return w;}
+  function wrap(str,maxW,size,maxLines){
+    maxLines=maxLines||3; str=String(str==null?'':str);
+    var lines=[],cur='';
+    var tokens=str.split(/(\s+)/);
+    for(var i=0;i<tokens.length;i++){
+      var tok=tokens[i]; if(!tok) continue;
+      if(tw(cur+tok,size)<=maxW){cur+=tok;continue;}
+      if(!/\s/.test(tok)&&tw(tok,size)>maxW){
+        for(var j=0;j<tok.length;j++){
+          var ch=tok[j];
+          if(tw(cur+ch,size)>maxW&&cur){lines.push(cur.trim());cur='';}
+          cur+=ch;
+        }
+        continue;
+      }
+      if(cur.trim()) lines.push(cur.trim());
+      cur=tok.trim();
+    }
+    if(cur.trim()) lines.push(cur.trim());
+    if(!lines.length) lines.push('');
+    if(lines.length>maxLines){
+      lines=lines.slice(0,maxLines);
+      lines[maxLines-1]=lines[maxLines-1]+'…';
+    }
+    return lines;
+  }
+
+  function arch(el,spec){
+    var W=1000,M=44,PAD=30,GAP=12,LBL=10,NH=72,BGAP=70;
+    var x=M,y=14;
+    var bands=[],pos={},bandOf={};
+    spec.bands.forEach(function(b,bi){
+      var n=b.nodes.length;
+      var innerW=W-2*M-2*PAD;
+      var nw=Math.min(380,(innerW-(n-1)*GAP)/n);
+      var total=nw*n+GAP*(n-1);
+      var x0=M+PAD+(innerW-total)/2;
+      var h=LBL+NH+PAD;
+      b.nodes.forEach(function(nd,i){
+        var p={x:x0+i*(nw+GAP),y:y+LBL,w:nw,h:NH,band:bi,idx:i};
+        pos[nd.id]=p; bandOf[nd.id]=bi;
+      });
+      bands.push({b:b,x:M,y:y,w:W-2*M,h:h,x0:x0,nw:nw});
+      y+=h+BGAP;
+    });
+    var H=y-BGAP+12;
+    var out=[];
+    out.push('<defs><marker id="aw'+(++uid)+'" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5F7380"/></marker></defs>');
+    var aid='aw'+uid;
+    var labels=[];
+    bands.forEach(function(bd){
+      var b=bd.b, t=TONE[b.tone||'core'];
+      out.push('<rect x="'+M+'" y="'+bd.y+'" width="'+(W-2*M)+'" height="'+bd.h+'" rx="2" fill="'+t.fill+'" stroke="'+t.line+'" stroke-opacity=".45"/>');
+      if(b.note){ out.push('<text x="'+(W-M-14)+'" y="'+(bd.y+bd.h-9)+'" text-anchor="end" font-family="var(--mono)" font-size="9" fill="#7A8894">'+esc(b.note)+'</text>'); }
+      labels.push('<text transform="translate(15,'+(bd.y+bd.h/2)+') rotate(-90)" text-anchor="middle" font-family="var(--mono)" font-size="9" letter-spacing=".08em" fill="#5A6975">'+esc((b.code||'')+' '+(b.label||''))+'</text>');
+    });
+    // edges first
+    var outCounts={},inCounts={};
+    spec.edges.forEach(function(e){outCounts[e.from]=(outCounts[e.from]||0)+1;inCounts[e.to]=(inCounts[e.to]||0)+1;});
+    var oc={},ic={},placedLabels=[];
+    spec.edges.forEach(function(e){
+      var s=pos[e.from],t=pos[e.to]; if(!s||!t) return;
+      if(bandOf[e.from]===bandOf[e.to]){
+        if(Math.abs(s.idx-t.idx)!==1) return;
+        var l=s.x<t.x?s:t, r=s.x<t.x?t:s, yy=l.y+l.h/2;
+        out.push('<line x1="'+(l.x+l.w+1)+'" y1="'+yy+'" x2="'+(r.x-1)+'" y2="'+yy+'" stroke="#5F7380" stroke-width="1.15" marker-end="url(#'+aid+')"/>');
+        return;
+      }
+      if(Math.abs(bandOf[e.to]-bandOf[e.from])>1) return;
+      var i=(oc[e.from]=(oc[e.from]||0)+1)-1,j=(ic[e.to]=(ic[e.to]||0)+1)-1;
+      var sx=s.x+s.w*((i+1)/(outCounts[e.from]+1));
+      var tx=t.x+t.w*((j+1)/(inCounts[e.to]+1));
+      var d,labelX,labelY;
+      if(false){
+        var bi=bandOf[e.from], k=0;
+        var laneY=bands[bi].y+bands[bi].h+14+k*14;
+        var sb=s.y+s.h, tb=t.y+t.h;
+        d='M'+sx+','+sb+' L'+sx+','+laneY+' L'+tx+','+laneY+' L'+tx+','+(tb+3);
+        labelX=(sx+tx)/2; labelY=laneY-5;
+      }else if(bandOf[e.to]<bandOf[e.from]){
+        var rx=W-16, sy1=s.y+s.h/2, ty1=t.y+t.h/2;
+        var sx1=s.x+s.w, tx1=t.x+t.w;
+        d='M'+sx1+','+sy1+' L'+rx+','+sy1+' L'+rx+','+ty1+' L'+(tx1+3)+','+ty1;
+        labelX=rx-8; labelY=(sy1+ty1)/2;
+      }else{
+        var sy=s.y+s.h, ty=t.y;
+        d='M'+sx+','+sy+' C'+sx+','+(sy+16)+' '+tx+','+(ty-16)+' '+tx+','+(ty-2);
+        labelX=sx+0.3*(tx-sx); labelY=sy+0.3*(ty-sy)-6;
+      }
+      out.push('<path d="'+d+'" fill="none" stroke="#5F7380" stroke-width="1.25" stroke-linejoin="round" stroke-dasharray="'+(e.kind==='ret'?'4 3':'')+'" marker-end="url(#'+aid+')" opacity=".9"/>');
+      if(e.label){
+        var lw=tw(e.label,9)+9, placed=false;
+        for(var ty2=0;ty2<3 && !placed;ty2++){
+          var candY=labelY-(ty2?ty2*13:0);
+          var free=true;
+          for(var li=0;li<placedLabels.length;li++){
+            var L=placedLabels[li];
+            if(Math.abs(candY-L.y)<12 && Math.abs(labelX-L.x)<(lw+L.w)/2+4){free=false;break;}
+          }
+          if(free){labelY=candY;placed=true;placedLabels.push({x:labelX,y:labelY,w:lw});}
+        }
+        if(!placed) placedLabels.push({x:0,y:-99,w:0});
+        out.push('<g><rect x="'+(labelX-lw/2)+'" y="'+(labelY-11)+'" width="'+lw+'" height="13" fill="'+'#F8FAFB'+'" opacity=".92" rx="1"/><text x="'+labelX+'" y="'+(labelY-1)+'" text-anchor="middle" font-family="var(--mono)" font-size="9" fill="#5A6975">'+esc(e.label)+'</text></g>');
+      }
+    });
+    // nodes
+    spec.bands.forEach(function(b){
+      var t=TONE[b.tone||'core'];
+      b.nodes.forEach(function(nd){
+        var p=pos[nd.id];
+        out.push('<rect x="'+p.x+'" y="'+p.y+'" width="'+p.w+'" height="'+p.h+'" rx="2" fill="#FCFDFD" stroke="#B8C3CA" stroke-width="1"/>');
+        out.push('<rect x="'+p.x+'" y="'+p.y+'" width="3" height="'+p.h+'" fill="'+t.bar+'"/>');
+        var tl=wrap(nd.t,p.w-16,12,2);
+        tl.forEach(function(line,k){
+          out.push('<text x="'+(p.x+11)+'" y="'+(p.y+20+k*14)+'" font-size="12" font-weight="600" fill="#16242D">'+esc(line)+'</text>');
+        });
+        if(nd.s){
+          var sl=wrap(nd.s,p.w-16,8.8,1);
+          out.push('<text x="'+(p.x+11)+'" y="'+(p.y+p.h-9)+'" font-family="var(--mono)" font-size="8.8" fill="#5A6975">'+esc(sl[0])+'</text>');
+        }
+      });
+    });
+    el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(spec.alt||'')+'" xmlns="http://www.w3.org/2000/svg">'+out.join('')+labels.join('')+'</svg>';
+  }
+
+  function seq(el,spec){
+    var W=1000,M=40;
+    var as=spec.actors,n=as.length;
+    var colW=(W-2*M)/n;
+    var cx={};
+    as.forEach(function(a,i){cx[a.id]=M+colW*(i+0.5);});
+    var out=[];
+    var aid='aw'+(++uid);
+    var defs='<defs><marker id="'+aid+'" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5F7380"/></marker></defs>';
+    // actors
+    as.forEach(function(a,i){
+      var bw=Math.min(colW-12,168),bx=cx[a.id]-bw/2;
+      out.push('<rect x="'+bx+'" y="14" width="'+bw+'" height="36" fill="#FCFDFD" stroke="#B8C3CA"/>');
+      out.push('<rect x="'+bx+'" y="14" width="'+bw+'" height="2.5" fill="'+(KIND[a.kind]||'#0B5C8A')+'"/>');
+      out.push('<text x="'+cx[a.id]+'" y="32" text-anchor="middle" font-size="11.5" font-weight="600" fill="#16242D">'+esc(a.t)+'</text>');
+      out.push('<text x="'+cx[a.id]+'" y="44" text-anchor="middle" font-family="var(--mono)" font-size="8.2" fill="#7A8894">'+esc(a.kind||'')+'</text>');
+    });
+    var y=90;
+    var runs=[],curFrag=null,runStart=0;
+    var stepGroups=[];
+    spec.steps.forEach(function(st,si){
+      if(st.frag){
+        if(curFrag!==st.frag){ if(curFrag) runs.push({label:curFrag,y0:runStart,y1:y-8}); curFrag=st.frag; runStart=y-8; }
+      }else if(curFrag){ runs.push({label:curFrag,y0:runStart,y1:y-8}); curFrag=null; }
+      var kind=st.kind||'call';
+      var ax=cx[st.f],bx=cx[st.t];
+      if(ax===undefined||bx===undefined) return;
+      var g='<g class="stepg" data-i="'+si+'">';
+      var num='<text x="6" y="'+(y+13)+'" font-family="var(--mono)" font-size="9" fill="#9AA7B1">'+(si+1)+'</text>';
+      g+=num;
+      if(kind==='note'){
+        var spanA=Math.min(ax,bx), spanB=Math.max(ax,bx);
+        var nl=wrap(st.label,Math.max(220,spanB-spanA+40),10.5,3);
+        var nh=nl.length*13+12;
+        g+='<rect x="'+(spanA-14)+'" y="'+y+'" width="'+(spanB-spanA+28)+'" height="'+nh+'" fill="#FBF3E4" stroke="#D8BE93" stroke-dasharray="3 3"/>';
+        nl.forEach(function(l,k){g+='<text x="'+((spanA+spanB)/2)+'" y="'+(y+16+k*13)+'" text-anchor="middle" font-size="10.5" fill="#7A5210">'+esc(l)+'</text>';});
+        g+='</g>';
+        out.push(g); y+=nh+14; return;
+      }
+      var maxW=Math.max(150,Math.min(330,Math.abs(bx-ax)*1.65));
+      if(kind==='self') maxW=200;
+      var lines=wrap(st.label,maxW,11,3);
+      var lh=13.5;
+      var blockH=lines.length*lh+16;
+      if(kind==='self'){
+        var sx=cx[st.f];
+        var loopDir=1;
+        var lx=sx+26, ly=y+6;
+        g+='<path d="M'+sx+','+(y+16)+' C'+(sx+52)+','+(y+2)+' '+(sx+52)+','+(y+26)+' '+sx+','+(y+26)+'" fill="none" stroke="#5F7380" stroke-width="1.15" marker-end="url(#'+aid+')"/>';
+        var sl=wrap(st.label,190,10.5,2);
+        sl.forEach(function(l,k){g+='<text x="'+(sx+56)+'" y="'+(y+12+k*12)+'" font-size="10.5" fill="#33454F">'+esc(l)+'</text>';});
+      }else{
+        lines.forEach(function(l,k){
+          g+='<text x="'+((ax+bx)/2)+'" y="'+(y+12+k*lh)+'" text-anchor="middle" font-size="11" fill="#22313B">'+esc(l)+'</text>';
+        });
+        var ay=y+lines.length*lh+4;
+        g+='<line x1="'+ax+'" y1="'+ay+'" x2="'+(bx+(bx>ax?-4:4))+'" y2="'+ay+'" stroke="#5F7380" stroke-width="1.15" stroke-dasharray="'+(kind==='ret'?'4 3':'')+'" marker-end="url(#'+aid+')"/>';
+        if(kind==='risk'){
+          g+='<circle cx="'+(ax)+'" cy="'+ay+'" r="3" fill="#A9660F"/>';
+        }
+      }
+      g+='</g>';
+      out.push(g);
+      y+=blockH+6;
+    });
+    if(curFrag) runs.push({label:curFrag,y0:runStart,y1:y-8});
+    var H=y+16;
+    // lifelines behind
+    var life=[];
+    as.forEach(function(a){
+      life.push('<line x1="'+cx[a.id]+'" y1="50" x2="'+cx[a.id]+'" y2="'+(H-10)+'" stroke="#C4CFD6" stroke-width="1" stroke-dasharray="3 4"/>');
+    });
+    // fragment boxes
+    var fragOut=[];
+    runs.forEach(function(r){
+      var fw=W-2*M+16;
+      fragOut.push('<rect x="'+(M-8)+'" y="'+r.y0+'" width="'+fw+'" height="'+(r.y1-r.y0+10)+'" fill="rgba(11,92,138,.035)" stroke="#9FB6C4" stroke-dasharray="4 3"/>');
+      fragOut.push('<rect x="'+(M-6)+'" y="'+(r.y0-8)+'" width="'+(tw(r.label,9)+14)+'" height="14" fill="#F8FAFB" stroke="#9FB6C4" stroke-dasharray="4 3"/>');
+      fragOut.push('<text x="'+(M+1)+'" y="'+(r.y0+2)+'" font-family="var(--mono)" font-size="9" fill="#0B5C8A">'+esc(r.label)+'</text>');
+    });
+    el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(spec.alt||'')+'" xmlns="http://www.w3.org/2000/svg">'+defs+fragOut.join('')+life.join('')+out.join('')+'</svg>';
+  }
+
+  window.__draw=function(){
+    document.querySelectorAll('[data-arch]').forEach(function(el){
+      var s=SPECS.arch[el.getAttribute('data-arch')];
+      if(s) arch(el,s);
+    });
+    document.querySelectorAll('[data-seq]').forEach(function(el){
+      var s=SPECS.seq[el.getAttribute('data-seq')];
+      if(s) seq(el,s);
+    });
+  };
+})();
+</script>
+<script>
+var SPECS={arch:{},seq:{}};
+
+SPECS.arch.overview={alt:'nanoMuse 总体架构：设备、本地运行时、模型、中继',bands:[
+ {code:'A',label:'设备与界面',tone:'client',nodes:[
+  {id:'android',t:'Android App',s:'Kotlin Agent + proot 沙箱'},
+  {id:'ios',t:'iPhone',s:'Swift 客户端'},
+  {id:'desktop',t:'桌面',s:'Electron + dsh 插件'},
+  {id:'web',t:'Web 控制台',s:'React → server/static'}]},
+ {code:'B',label:'本地运行时',tone:'core',nodes:[
+  {id:'srv',t:'App Server',s:'线程 · 事件'},
+  {id:'agent',t:'MuseAgent',s:'提示 · 循环'},
+  {id:'guard',t:'Sentinel',s:'六步判定'},
+  {id:'tools',t:'ToolCollection',s:'内置 · MCP'},
+  {id:'state',t:'记忆与目标',s:'四个 SQLite'}]},
+ {code:'C',label:'模型',tone:'ext',nodes:[
+  {id:'llm',t:'LLM 适配层',s:'chat / responses / codex'},
+  {id:'upstream',t:'模型端点',s:'云端 · 自建 · 本地'}]},
+ {code:'D',label:'中继',tone:'exec',note:'每台设备各自一条出站连接，中继只做账号内转发',nodes:[
+  {id:'hubc',t:'Hub 客户端',s:'一条出站 WS'},
+  {id:'relay',t:'nanoMuse Cloud',s:'账号 · 路由 · 同步'}]}
+],edges:[
+ {from:'android',to:'srv',label:'本机 API'},
+ {from:'desktop',to:'srv',label:'dsh → 运行时'},
+ {from:'web',to:'srv',label:'HTTP / WS'},
+ {from:'srv',to:'agent'},
+ {from:'agent',to:'guard',label:'guard()'},
+ {from:'guard',to:'tools',label:'放行'},
+ {from:'agent',to:'state',label:'读写'},
+ {from:'agent',to:'llm'},
+ {from:'llm',to:'upstream',label:'请求'},
+ {from:'srv',to:'hubc',label:'出站'},
+ {from:'hubc',to:'relay',label:'/v1/hub'}
+]};
+
+SPECS.arch.m01={alt:'客户端接入本地运行时与中继的架构',bands:[
+ {code:'A',label:'入口形态',tone:'client',nodes:[
+  {id:'phone',t:'Android App',s:'Kotlin · proot 沙箱'},
+  {id:'iphone',t:'iPhone',s:'Swift · 无屏幕操作'},
+  {id:'desk',t:'桌面壳',s:'Electron 主进程'},
+  {id:'console',t:'Web 控制台',s:'整页 UI'},
+  {id:'demo',t:'浏览器 Demo',s:'模拟手机'}]},
+ {code:'B',label:'传输与静态资源',tone:'ext',nodes:[
+  {id:'rest',t:'REST /api',s:'命令 · 状态'},
+  {id:'ws',t:'WebSocket',s:'事件 · 审批'},
+  {id:'static',t:'静态资源',s:'server/static'},
+  {id:'dsh',t:'dsh Host + 插件',s:'Node 侧循环'}]},
+ {code:'C',label:'本机能力',tone:'core',nodes:[
+  {id:'runtime',t:'本地运行时',s:'Agent · 工具 · 存储'}]},
+ {code:'D',label:'远端',tone:'exec',nodes:[
+  {id:'hub',t:'/v1/hub',s:'跨设备帧'},
+  {id:'relay',t:'nanoMuse Cloud',s:'账号 · 模型 · 转发'},
+  {id:'other',t:'其他设备',s:'被借用的手'}]}
+],edges:[
+ {from:'phone',to:'rest',label:'本机'},
+ {from:'phone',to:'ws'},
+ {from:'console',to:'static',label:'加载页面'},
+ {from:'demo',to:'static',label:'模拟手机'},
+ {from:'desk',to:'dsh'},
+ {from:'rest',to:'runtime'},
+ {from:'ws',to:'runtime',kind:'ret'},
+ {from:'dsh',to:'runtime',label:'MCP 手'},
+ {from:'runtime',to:'hub'},
+ {from:'hub',to:'relay',label:'路由'},
+ {from:'relay',to:'other',label:'转发'}
+]};
+
+SPECS.arch.m02={alt:'NanoMuseApp 装配依赖图',bands:[
+ {code:'A',label:'配置输入',tone:'ext',nodes:[
+  {id:'cfg',t:'config.toml',s:'人写'},
+  {id:'ui',t:'app-settings.json',s:'UI 写'},
+  {id:'env',t:'环境变量',s:'密钥 · 覆盖'},
+  {id:'paths',t:'data_dir / workspace',s:'路径根'}]},
+ {code:'B',label:'组合根',tone:'core',nodes:[
+  {id:'app',t:'NanoMuseApp',s:'create once, wire all'}]},
+ {code:'C',label:'组件',tone:'exec',nodes:[
+  {id:'vault',t:'Vault',s:'Fernet · 占位符'},
+  {id:'sent',t:'Sentinel',s:'策略 · 评审'},
+  {id:'mcp',t:'MCP · Skills',s:'远端工具 · 指令包'},
+  {id:'hands',t:'本机 Hands',s:'屏幕 · 坐标 · 轨迹'},
+  {id:'llm',t:'LLM + Budget',s:'协议 · 预算'},
+  {id:'stores',t:'四个 Store',s:'4 个 SQLite'},
+  {id:'infra',t:'Audit · Grants',s:'留痕 · 授权库'}]},
+ {code:'D',label:'交给会话',tone:'data',nodes:[
+  {id:'tools',t:'ToolCollection',s:'按开关拼装'},
+  {id:'agent',t:'MuseAgent',s:'提示 + 循环'},
+  {id:'service',t:'MuseService',s:'每会话一个 agent'}]}
+],edges:[
+ {from:'cfg',to:'app'},
+ {from:'ui',to:'app'},
+ {from:'env',to:'app'},
+ {from:'paths',to:'app'},
+ {from:'app',to:'vault'},
+ {from:'app',to:'sent'},
+ {from:'app',to:'mcp'},
+ {from:'app',to:'hands'},
+ {from:'app',to:'llm'},
+ {from:'app',to:'stores'},
+ {from:'app',to:'infra'},
+ {from:'vault',to:'tools',label:'凭据'},
+ {from:'sent',to:'tools',label:'guard'},
+ {from:'mcp',to:'tools'},
+ {from:'hands',to:'tools'},
+ {from:'llm',to:'agent'},
+ {from:'stores',to:'agent'},
+ {from:'tools',to:'agent'},
+ {from:'agent',to:'service',label:'注入'}
+]};
+
+SPECS.arch.m03={alt:'Agent 循环的上下文、控制与持久化',bands:[
+ {code:'A',label:'输入',tone:'client',nodes:[
+  {id:'msg',t:'用户消息',s:'本轮请求'},
+  {id:'inbox',t:'Inbox',s:'运行中追加'},
+  {id:'bg',t:'后台提示',s:'目标 · 定时'}]},
+ {code:'B',label:'提示装配',tone:'core',nodes:[
+  {id:'sys',t:'系统提示',s:'人格 · 语言 · 设备'},
+  {id:'mem',t:'召回与注入',s:'记忆 · 目标 · 日程'},
+  {id:'win',t:'窗口 + 预算',s:'max messages / tokens'},
+  {id:'schema',t:'工具 schema',s:'按开关裁剪'}]},
+ {code:'C',label:'循环',tone:'exec',nodes:[
+  {id:'ask',t:'LLM 调用',s:'流式'},
+  {id:'parse',t:'解析响应',s:'文本 / tool_calls'},
+  {id:'disp',t:'逐调用处理',s:'assess → guard → run'},
+  {id:'stuck',t:'终止条件',s:'卡住 · 步数 · 预算'}]},
+ {code:'D',label:'输出与落盘',tone:'data',nodes:[
+  {id:'ui',t:'UI 事件',s:'delta · tool · done'},
+  {id:'audit',t:'audit.jsonl',s:'每步一条'},
+  {id:'sess',t:'会话 JSON',s:'tmp + fsync + rename'}]}
+],edges:[
+ {from:'msg',to:'sys'},
+ {from:'inbox',to:'sys',label:'折叠'},
+ {from:'bg',to:'sys'},
+ {from:'mem',to:'sys',label:'注入'},
+ {from:'sys',to:'win'},
+ {from:'schema',to:'ask'},
+ {from:'win',to:'ask',label:'messages'},
+ {from:'ask',to:'parse'},
+ {from:'parse',to:'disp',label:'tool_call'},
+ {from:'parse',to:'stuck',kind:'ret'},
+ {from:'ask',to:'ui',kind:'ret'},
+ {from:'disp',to:'audit',label:'每步'},
+ {from:'stuck',to:'sess',label:'收尾'}
+]};
+
+SPECS.arch.m04={alt:'LLM 抽象、协议适配与端点',bands:[
+ {code:'A',label:'调用方',tone:'client',nodes:[
+  {id:'agent',t:'Agent 主循环',s:'主对话'},
+  {id:'aux',t:'辅助调用',s:'整理 · 观察 · 点子'}]},
+ {code:'B',label:'解析与支撑',tone:'core',nodes:[
+  {id:'factory',t:'factory.resolve',s:'provider → protocol'},
+  {id:'cat',t:'providers.json',s:'能力目录'},
+  {id:'budget',t:'task_budget',s:'token · 步数 · 秒'},
+  {id:'filter',t:'流式处理',s:'think 分流 · 图片缩放'}]},
+ {code:'C',label:'协议适配',tone:'exec',nodes:[
+  {id:'chat',t:'OpenAIChat',s:'chat/completions'},
+  {id:'resp',t:'OpenAIResponses',s:'responses API'},
+  {id:'codex',t:'CodexLLM',s:'OAuth · PKCE'},
+  {id:'pt',t:'PromptToolAdapter',s:'提示词模拟工具'}]},
+ {code:'D',label:'端点',tone:'ext',nodes:[
+  {id:'oa',t:'OpenAI 兼容',s:'自建 / 第三方'},
+  {id:'relay',t:'中继 /v1/chat',s:'官方额度'},
+  {id:'gpt',t:'ChatGPT 后端',s:'登录态'},
+  {id:'local',t:'本地 Ollama',s:'127.0.0.1'}]}
+],edges:[
+ {from:'agent',to:'factory'},
+ {from:'aux',to:'factory'},
+ {from:'cat',to:'factory',label:'protocol'},
+ {from:'budget',to:'factory',label:'ask()'},
+ {from:'factory',to:'chat'},
+ {from:'factory',to:'resp'},
+ {from:'factory',to:'codex'},
+ {from:'factory',to:'pt'},
+ {from:'filter',to:'chat',label:'分流'},
+ {from:'chat',to:'oa'},
+ {from:'resp',to:'relay'},
+ {from:'codex',to:'gpt'},
+ {from:'chat',to:'local',label:'base_url'}
+]};
+
+SPECS.arch.m05={alt:'工具注册表、工具族与执行落点',bands:[
+ {code:'A',label:'模型侧',tone:'client',nodes:[
+  {id:'schema',t:'tool schema',s:'name · params · risk'},
+  {id:'call',t:'tool_call',s:'JSON 参数'}]},
+ {code:'B',label:'注册与执行',tone:'core',nodes:[
+  {id:'coll',t:'ToolCollection',s:'注册 · 查找 · schema'},
+  {id:'base',t:'BaseTool',s:'risk · assess · run'},
+  {id:'safe',t:'safe_execute',s:'异常 → ToolResult'}]},
+ {code:'C',label:'工具族',tone:'exec',nodes:[
+  {id:'fs',t:'文件 · Shell · Python',s:'本地执行'},
+  {id:'web',t:'Web · Browser',s:'搜索 · 页面'},
+  {id:'mem',t:'记忆 · 目标 · 提醒',s:'状态读写'},
+  {id:'conn',t:'邮件 · 日历 · 通讯录',s:'连接器'},
+  {id:'mcp',t:'MCP 远端',s:'stdio / HTTP / SSE'},
+  {id:'hands',t:'Hands',s:'手机 · 电脑屏幕'}]},
+ {code:'D',label:'落点',tone:'data',nodes:[
+  {id:'ws',t:'workspace / 沙箱',s:'可写区'},
+  {id:'net',t:'网络与站点',s:'egress 判定'},
+  {id:'sql',t:'SQLite',s:'四个库'},
+  {id:'api',t:'第三方 API',s:'凭据替换'},
+  {id:'dev',t:'设备屏幕',s:'坐标点击'}]}
+],edges:[
+ {from:'schema',to:'coll'},
+ {from:'call',to:'coll',label:'目标'},
+ {from:'coll',to:'base'},
+ {from:'base',to:'safe',label:'包住 run'},
+ {from:'safe',to:'fs'},
+ {from:'safe',to:'web'},
+ {from:'safe',to:'mem'},
+ {from:'safe',to:'conn'},
+ {from:'safe',to:'mcp'},
+ {from:'safe',to:'hands'},
+ {from:'fs',to:'ws'},
+ {from:'web',to:'net'},
+ {from:'mem',to:'sql'},
+ {from:'conn',to:'api'},
+ {from:'mcp',to:'api'},
+ {from:'hands',to:'dev'}
+]};
+
+SPECS.arch.m06={alt:'Sentinel 的决策、执行与留痕',bands:[
+ {code:'A',label:'调用',tone:'client',nodes:[
+  {id:'call',t:'ToolCall',s:'名字 + 参数'},
+  {id:'assess',t:'CallAssessment',s:'摘要 · 风险 · 目标'},
+  {id:'taint',t:'污点标记',s:'按会话 · 内存'}]},
+ {code:'B',label:'决策',tone:'risk',nodes:[
+  {id:'rev',t:'Reviewer',s:'只建议，不授权'},
+  {id:'policy',t:'Policy 六步',s:'deny → rules → risk → taint'},
+  {id:'grant',t:'GrantStore',s:'tool:target'}]},
+ {code:'C',label:'执行',tone:'exec',nodes:[
+  {id:'vault',t:'Vault 替换',s:'{{vault:NAME}}'},
+  {id:'sandbox',t:'bubblewrap',s:'workspace 可写 · 默认无网'},
+  {id:'run',t:'Tool.run',s:'真实副作用'}]},
+ {code:'D',label:'留痕',tone:'data',nodes:[
+  {id:'audit',t:'audit.jsonl',s:'decision + call + result'}]}
+],edges:[
+ {from:'call',to:'policy'},
+ {from:'assess',to:'policy',label:'风险'},
+ {from:'taint',to:'policy',label:'出网升级'},
+ {from:'rev',to:'policy',label:'建议'},
+ {from:'policy',to:'grant',label:'ask / allow'},
+ {from:'policy',to:'vault',label:'放行'},
+ {from:'vault',to:'sandbox'},
+ {from:'sandbox',to:'run'},
+ {from:'run',to:'audit',label:'结果'}
+]};
+
+SPECS.arch.m07={alt:'长期状态的写入、存储、读取与消费',bands:[
+ {code:'A',label:'写入',tone:'client',nodes:[
+  {id:'tool',t:'remember / forget',s:'按需写入'},
+  {id:'cons',t:'consolidate',s:'合并 · 可回滚'},
+  {id:'sched',t:'调度器',s:'时间 · 事件'}]},
+ {code:'B',label:'持久状态',tone:'data',nodes:[
+  {id:'memdb',t:'memory.db',s:'memories · log · vectors'},
+  {id:'goaldb',t:'goals.db',s:'goals · steps'},
+  {id:'remdb',t:'reminders.db',s:'reminders'},
+  {id:'trigdb',t:'triggers.db',s:'triggers · fired'},
+  {id:'outbox',t:'deliveries',s:'source_key UNIQUE'}]},
+ {code:'C',label:'读取',tone:'core',nodes:[
+  {id:'kw',t:'关键词 IDF',s:'postings · bigram'},
+  {id:'vec',t:'向量近邻',s:'按模型一份'},
+  {id:'assemble',t:'组装段落',s:'max_inject 截断'}]},
+ {code:'D',label:'消费',tone:'exec',nodes:[
+  {id:'prompt',t:'系统提示',s:'本轮请求'},
+  {id:'bg',t:'后台 goal pass',s:'独立线程'}]}
+],edges:[
+ {from:'tool',to:'memdb'},
+ {from:'cons',to:'memdb',label:'改写'},
+ {from:'tool',to:'goaldb'},
+ {from:'sched',to:'remdb'},
+ {from:'sched',to:'trigdb'},
+ {from:'sched',to:'outbox'},
+ {from:'memdb',to:'kw'},
+ {from:'memdb',to:'vec'},
+ {from:'kw',to:'assemble'},
+ {from:'vec',to:'assemble'},
+ {from:'goaldb',to:'assemble'},
+ {from:'remdb',to:'assemble'},
+ {from:'assemble',to:'prompt',label:'≤ N 条'},
+ {from:'assemble',to:'bg'}
+]};
+
+SPECS.arch.m08={alt:'应用服务的接入、线程调度、协议与持久化',bands:[
+ {code:'A',label:'接入',tone:'client',nodes:[
+  {id:'rest',t:'REST /api',s:'命令'},
+  {id:'token',t:'server_token',s:'本机 only'}]},
+ {code:'B',label:'调度',tone:'core',nodes:[
+  {id:'service',t:'MuseService',s:'线程容器'},
+  {id:'thread',t:'Thread × N',s:'agent + inbox + worker'},
+  {id:'inbox',t:'Inbox',s:'下次调用前折叠'},
+  {id:'worker',t:'worker task',s:'一次 run'}]},
+ {code:'C',label:'UI 协议',tone:'exec',nodes:[
+  {id:'webui',t:'WebUI',s:'ConsoleUI 的另一种实现'},
+  {id:'events',t:'Timeline',s:'合并写 · 快照'},
+  {id:'ws',t:'WebSocket',s:'事件推送'},
+  {id:'future',t:'审批 future',s:'await resolve'},
+  {id:'ob',t:'outbox 库',s:'至少一次投递'}]},
+ {code:'D',label:'持久化',tone:'data',nodes:[
+  {id:'index',t:'threads/index.json',s:'元信息'},
+  {id:'tl',t:'<tid>.json',s:'时间线'},
+  {id:'sess',t:'<tid>.session.json',s:'消息历史'}]}
+],edges:[
+ {from:'rest',to:'service'},
+ {from:'token',to:'rest',label:'校验'},
+ {from:'service',to:'thread'},
+ {from:'thread',to:'inbox'},
+ {from:'inbox',to:'worker'},
+ {from:'service',to:'webui'},
+ {from:'webui',to:'events'},
+ {from:'webui',to:'future'},
+ {from:'events',to:'ws',label:'推'},
+ {from:'worker',to:'ob',label:'定时'},
+ {from:'webui',to:'index'},
+ {from:'events',to:'tl'},
+ {from:'events',to:'sess'}
+]};
+
+SPECS.arch.m09={alt:'Hub 的发起端、中继与目标端',bands:[
+ {code:'A',label:'发起设备',tone:'client',nodes:[
+  {id:'chat',t:'发起方聊天',s:'显示进度'},
+  {id:'atool',t:'device_* / delegate',s:'工具入口'}]},
+ {code:'B',label:'中继',tone:'ext',nodes:[
+  {id:'hub',t:'Hub 路由',s:'同账号内转发'},
+  {id:'reg',t:'设备表 · key 绑定',s:'id / kind / actions'}]},
+ {code:'C',label:'目标设备',tone:'core',nodes:[
+  {id:'hc',t:'Hub 客户端',s:'出站连接'},
+  {id:'act',t:'actions',s:'shell · files · screen'},
+  {id:'task',t:'对端 Muse 任务',s:'独立会话'},
+  {id:'sent',t:'对端 Sentinel',s:'本地闸门'}]},
+ {code:'D',label:'回传',tone:'data',nodes:[
+  {id:'ev',t:'event',s:'tool · text'},
+  {id:'res',t:'result',s:'ok / error'},
+  {id:'appr',t:'审批回流',s:'approval_id'}]}
+],edges:[
+ {from:'chat',to:'atool',label:'发起'},
+ {from:'atool',to:'hub',label:'call'},
+ {from:'hub',to:'reg'},
+ {from:'hub',to:'hc',label:'转发'},
+ {from:'hc',to:'act',label:'立即执行'},
+ {from:'hc',to:'task',label:'转交'},
+ {from:'task',to:'sent'},
+ {from:'act',to:'ev',label:'进度'},
+ {from:'task',to:'res'},
+ {from:'sent',to:'appr',label:'ask'}
+]};
+
+SPECS.arch.m10={alt:'中继服务的入口、服务与存储',bands:[
+ {code:'A',label:'入口',tone:'ext',nodes:[
+  {id:'auth',t:'/v1/auth',s:'code · verify'},
+  {id:'proxy',t:'/v1/chat',s:'OpenAI 形状'},
+  {id:'hub',t:'/v1/hub',s:'WS 路由'},
+  {id:'sync',t:'/v1/sync',s:'增量文本'},
+  {id:'prof',t:'/v1/me/profile',s:'人格文件'}]},
+ {code:'B',label:'服务与上游',tone:'core',nodes:[
+  {id:'api',t:'FastAPI',s:'鉴权 · 限流'},
+  {id:'sms',t:'短信 / SMTP',s:'验证码'},
+  {id:'hubsvc',t:'hub service',s:'pending call'},
+  {id:'ledger',t:'ledger',s:'额度 · 速率'},
+  {id:'model',t:'上游模型',s:'服务端 key'},
+  {id:'record',t:'record',s:'turns · client_events'}]},
+ {code:'C',label:'存储',tone:'data',nodes:[
+  {id:'sqlite',t:'SQLite 主库',s:'accounts · sync · ledger'},
+  {id:'blobs',t:'blobs',s:'图片按 sha256'}]}
+],edges:[
+ {from:'auth',to:'api'},
+ {from:'proxy',to:'api'},
+ {from:'hub',to:'hubsvc'},
+ {from:'sync',to:'api'},
+ {from:'prof',to:'api'},
+ {from:'api',to:'sms',label:'发码'},
+ {from:'proxy',to:'model',label:'转发'},
+ {from:'proxy',to:'ledger',label:'计费'},
+ {from:'proxy',to:'record',label:'整轮'},
+ {from:'api',to:'sqlite'},
+ {from:'record',to:'blobs'}
+]};
+
+/* ---------- sequences ---------- */
+SPECS.seq.m01={alt:'手机发一条消息的时序',actors:[
+ {id:'u',t:'用户',kind:'person'},{id:'ui',t:'App UI',kind:'app'},
+ {id:'rt',t:'本地运行时',kind:'core'},{id:'db',t:'存储',kind:'store'},{id:'llm',t:'模型',kind:'ext'}],steps:[
+ {f:'u',t:'ui',label:'输入一句话，点发送'},
+ {f:'ui',t:'rt',label:'POST /api/threads/{id}/messages'},
+ {f:'rt',t:'db',label:'追加 user 事件；会话标 dirty'},
+ {f:'rt',t:'llm',label:'系统提示 + 窗口 + 工具 schema'},
+ {f:'llm',t:'rt',label:'流式 token 与 reasoning',kind:'ret'},
+ {f:'rt',t:'ui',label:'WS event：text delta，首字上屏',kind:'ret'},
+ {f:'rt',t:'db',label:'原子写会话；flush 时间线'},
+ {f:'rt',t:'ui',label:'WS event：turn done',kind:'ret'},
+ {f:'ui',t:'u',label:'渲染完成，输入框解锁',kind:'ret'}]};
+
+SPECS.seq.m02={alt:'进程启动装配时序',actors:[
+ {id:'cli',t:'启动器',kind:'ext'},{id:'app',t:'NanoMuseApp',kind:'core'},
+ {id:'cfg',t:'配置层',kind:'ext'},{id:'db',t:'文件与库',kind:'store'},{id:'svc',t:'MuseService',kind:'core'}],steps:[
+ {f:'cli',t:'app',label:'nanomuse serve --data-dir'},
+ {f:'app',t:'cfg',label:'读 config.toml + app-settings.json'},
+ {f:'cfg',t:'app',label:'合并后的 Settings（已校验）',kind:'ret'},
+ {f:'app',t:'db',label:'ensure_dirs：sessions / threads / workspace'},
+ {f:'app',t:'db',label:'打开 4 个 SQLite；初始化 Vault'},
+ {f:'app',t:'app',label:'按序创建 Sentinel、LLM、MCP、Hands',kind:'self'},
+ {f:'app',t:'app',label:'_build_tools()：按开关拼装工具',kind:'self'},
+ {f:'app',t:'svc',label:'注入 stores / tools / llm / audit'},
+ {f:'svc',t:'app',label:'就绪',kind:'ret'},
+ {f:'app',t:'cli',label:'监听 127.0.0.1，打印 token 路径',kind:'ret'}]};
+
+SPECS.seq.m03={alt:'一轮含工具调用的 Agent 时序',actors:[
+ {id:'ui',t:'UI',kind:'app'},{id:'ag',t:'MuseAgent',kind:'core'},
+ {id:'llm',t:'LLM',kind:'ext'},{id:'sen',t:'Sentinel',kind:'risk'},
+ {id:'tool',t:'Tool',kind:'exec'},{id:'fs',t:'会话文件',kind:'store'}],steps:[
+ {f:'ui',t:'ag',label:'run(user_text)'},
+ {f:'ag',t:'fs',label:'begin_task；写审计 user'},
+ {f:'ag',t:'ag',label:'装配系统提示，裁窗口与 token 预算',kind:'self'},
+ {f:'ag',t:'llm',label:'ask(messages, tools)',frag:'loop：直到终止'},
+ {f:'llm',t:'ag',label:'content + tool_calls',kind:'ret',frag:'loop：直到终止'},
+ {f:'ag',t:'sen',label:'guard(call, assessment)',frag:'loop：直到终止'},
+ {f:'sen',t:'ag',label:'allow（或审批通过）',kind:'ret',frag:'loop：直到终止'},
+ {f:'ag',t:'tool',label:'safe_execute(args)',frag:'loop：直到终止'},
+ {f:'tool',t:'ag',label:'ToolResult（已脱敏）',kind:'ret',frag:'loop：直到终止'},
+ {f:'ag',t:'ag',label:'追加 tool 消息；截图转 user 消息',kind:'self',frag:'loop：直到终止'},
+ {f:'ag',t:'llm',label:'再问一次（携带 tool 结果）',frag:'loop：直到终止'},
+ {f:'llm',t:'ag',label:'最终答复，无 tool_call',kind:'ret',frag:'loop：直到终止'},
+ {f:'ag',t:'fs',label:'原子写：tmp → fsync → rename'},
+ {f:'ag',t:'ui',label:'done + usage',kind:'ret'}]};
+
+SPECS.seq.m04={alt:'流式模型调用与重试',actors:[
+ {id:'ag',t:'Agent',kind:'core'},{id:'base',t:'BaseLLM',kind:'core'},
+ {id:'cat',t:'目录/预算',kind:'store'},{id:'up',t:'上游端点',kind:'ext'},{id:'ui',t:'UI',kind:'app'}],steps:[
+ {f:'ag',t:'base',label:'ask(messages, tools, stream=true)'},
+ {f:'base',t:'cat',label:'resolve(provider, model)'},
+ {f:'cat',t:'base',label:'protocol + base_url + capabilities',kind:'ret'},
+ {f:'base',t:'up',label:'POST /chat/completions'},
+ {f:'up',t:'base',label:'429 或连接中断',kind:'ret'},
+ {f:'base',t:'base',label:'指数退避，重建连接后重试',kind:'self'},
+ {f:'base',t:'up',label:'重试请求'},
+ {f:'up',t:'base',label:'SSE：reasoning chunk',kind:'ret'},
+ {f:'base',t:'ui',label:'on_reasoning_delta（思考区）'},
+ {f:'up',t:'base',label:'SSE：content chunk',kind:'ret'},
+ {f:'base',t:'ui',label:'on_delta（正文逐字）'},
+ {f:'base',t:'ag',label:'LLMResponse(content, tool_calls, usage)',kind:'ret'},
+ {f:'ag',t:'cat',label:'预算记账；超限则在下一步中断'}]};
+
+SPECS.seq.m05={alt:'一次工具调用如何被评估与执行',actors:[
+ {id:'llm',t:'LLM',kind:'ext'},{id:'coll',t:'ToolCollection',kind:'core'},
+ {id:'base',t:'BaseTool',kind:'exec'},{id:'sen',t:'Sentinel',kind:'risk'},{id:'env',t:'执行环境',kind:'store'}],steps:[
+ {f:'llm',t:'coll',label:'tool_call(name, args)'},
+ {f:'coll',t:'coll',label:'get(name)；未知则返回可用清单',kind:'self'},
+ {f:'coll',t:'base',label:'assess(args)'},
+ {f:'base',t:'coll',label:'CallAssessment(summary, risk, target)',kind:'ret'},
+ {f:'coll',t:'sen',label:'guard(call, assessment)'},
+ {f:'sen',t:'coll',label:'allow（ask 时先等审批）',kind:'ret'},
+ {f:'coll',t:'base',label:'run(args)：占位符已替换、沙箱已建'},
+ {f:'base',t:'env',label:'子进程 / HTTP / 设备点击'},
+ {f:'env',t:'base',label:'stdout / 响应 / 截图',kind:'ret'},
+ {f:'base',t:'coll',label:'ToolResult（脱敏，可带图）',kind:'ret'},
+ {f:'coll',t:'llm',label:'作为 tool 消息回灌',kind:'ret'}]};
+
+SPECS.seq.m06={alt:'一次敏感调用经过审批与脱敏',actors:[
+ {id:'ag',t:'Agent',kind:'core'},{id:'sen',t:'Sentinel',kind:'risk'},
+ {id:'pol',t:'Policy',kind:'risk'},{id:'u',t:'用户',kind:'person'},
+ {id:'vault',t:'Vault',kind:'store'},{id:'tool',t:'工具 · 沙箱',kind:'exec'},{id:'au',t:'审计',kind:'store'}],steps:[
+ {f:'ag',t:'sen',label:'guard(call, assessment)'},
+ {f:'sen',t:'pol',label:'evaluate(mode, risks, taints)'},
+ {f:'pol',t:'pol',label:'六步：deny → rules → always → risk × mode → taint → warnings',kind:'self'},
+ {f:'pol',t:'sen',label:'ask：shell:git push 命中警告',kind:'ret'},
+ {f:'sen',t:'u',label:'审批卡：摘要、目标、风险、一次性'},
+ {f:'u',t:'sen',label:'allow，scope=本对话',kind:'ret'},
+ {f:'sen',t:'pol',label:'记 grant：shell:git'},
+ {f:'sen',t:'vault',label:'resolve({{vault:GITHUB_TOKEN}})'},
+ {f:'vault',t:'sen',label:'明文只交给这一次调用',kind:'ret'},
+ {f:'sen',t:'tool',label:'run(args)：workspace 可写、默认无网'},
+ {f:'tool',t:'sen',label:'输出里出现 token',kind:'ret'},
+ {f:'sen',t:'sen',label:'替换为 [REDACTED:GITHUB_TOKEN]',kind:'self'},
+ {f:'sen',t:'ag',label:'ToolResult（干净）',kind:'ret'},
+ {f:'sen',t:'au',label:'decision + approval + call + result'}]};
+
+SPECS.seq.m07={alt:'记忆写入与召回',actors:[
+ {id:'ag',t:'Agent',kind:'core'},{id:'ms',t:'MemoryStore',kind:'core'},
+ {id:'emb',t:'Embedder',kind:'ext'},{id:'pr',t:'系统提示',kind:'app'},{id:'db',t:'SQLite',kind:'store'}],steps:[
+ {f:'ag',t:'ms',label:'remember(content, category)'},
+ {f:'ms',t:'db',label:'查重：content 完全相同则复用'},
+ {f:'ms',t:'db',label:'INSERT memories + memory_log(before/after)'},
+ {f:'ms',t:'emb',label:'embed(content)'},
+ {f:'emb',t:'ms',label:'vector(1536)',kind:'ret'},
+ {f:'ms',t:'db',label:'UPSERT memory_vectors(hash, model)'},
+ {f:'ag',t:'ms',label:'recall(query, max_inject)',frag:'下一轮开始'},
+ {f:'ms',t:'db',label:'关键词 postings + 向量近邻',frag:'下一轮开始'},
+ {f:'ms',t:'ms',label:'合并、去重、按分数截断',kind:'self',frag:'下一轮开始'},
+ {f:'ms',t:'pr',label:'记忆段落（≤ max_inject 条）',frag:'下一轮开始'},
+ {f:'pr',t:'ag',label:'随系统提示进入本次请求',kind:'ret',frag:'下一轮开始'}]};
+
+SPECS.seq.m08={alt:'消息进入线程并推送事件',actors:[
+ {id:'cl',t:'客户端',kind:'app'},{id:'api',t:'API',kind:'core'},
+ {id:'th',t:'Thread',kind:'core'},{id:'ag',t:'Agent',kind:'core'},
+ {id:'wui',t:'WebUI/Timeline',kind:'app'},{id:'ws',t:'WS',kind:'app'}],steps:[
+ {f:'cl',t:'api',label:'POST /api/threads/{id}/messages'},
+ {f:'api',t:'th',label:'inbox.put(text)'},
+ {f:'th',t:'th',label:'worker 未跑则启动；否则等下次模型调用',kind:'self'},
+ {f:'th',t:'ag',label:'run(合并后的本轮文本)'},
+ {f:'ag',t:'wui',label:'on_delta(text)'},
+ {f:'wui',t:'wui',label:'append 事件；合并写快照',kind:'self'},
+ {f:'wui',t:'ws',label:'event：text_delta'},
+ {f:'ws',t:'cl',label:'增量上屏',kind:'ret'},
+ {f:'ag',t:'wui',label:'ask_approval(...)'},
+ {f:'wui',t:'wui',label:'卡片落盘；创建 future 并 await',kind:'self'},
+ {f:'cl',t:'api',label:'POST /api/approvals/{id}'},
+ {f:'api',t:'wui',label:'future.set(allow)'},
+ {f:'ag',t:'wui',label:'on_done(usage)'},
+ {f:'wui',t:'wui',label:'flush 最新快照（旧 worker 不可覆盖）',kind:'self'},
+ {f:'wui',t:'ws',label:'event：turn done'},
+ {f:'ws',t:'cl',label:'结束状态',kind:'ret'}]};
+
+SPECS.seq.m09={alt:'跨设备委派与审批回流',actors:[
+ {id:'pm',t:'手机 Muse',kind:'core'},{id:'relay',t:'中继',kind:'ext'},
+ {id:'dh',t:'桌面 Hub',kind:'core'},{id:'dm',t:'桌面 Muse',kind:'core'},{id:'pu',t:'手机用户',kind:'person'}],steps:[
+ {f:'pm',t:'relay',label:'call{target:pc, action:task, turn_id, stream}'},
+ {f:'relay',t:'dh',label:'同账号、在线才转发'},
+ {f:'dh',t:'dm',label:'新会话 task + turn_id',frag:'桌面执行'},
+ {f:'dm',t:'relay',label:'event：tool(shell)',frag:'桌面执行'},
+ {f:'relay',t:'pm',label:'进度卡片',kind:'ret',frag:'桌面执行'},
+ {f:'dm',t:'relay',label:'event：approval(shell:git push)',frag:'桌面执行'},
+ {f:'relay',t:'pu',label:'审批卡回到发起的人',frag:'桌面执行'},
+ {f:'pu',t:'relay',label:'approve{approval_id, allow}',kind:'ret',frag:'桌面执行'},
+ {f:'relay',t:'dm',label:'放行；对端同一张卡先答先赢',frag:'桌面执行'},
+ {f:'dm',t:'relay',label:'result{ok, summary}',kind:'ret',frag:'桌面执行'},
+ {f:'relay',t:'pm',label:'最终答复；turn_id 已存档，不重放',kind:'ret'}]};
+
+SPECS.seq.m10={alt:'中继的登录、模型代理与同步',actors:[
+ {id:'app',t:'客户端',kind:'app'},{id:'api',t:'Relay API',kind:'core'},
+ {id:'sms',t:'短信/邮件',kind:'ext'},{id:'up',t:'上游模型',kind:'ext'},{id:'db',t:'SQLite',kind:'store'}],steps:[
+ {f:'app',t:'api',label:'POST /v1/auth/code{phone}'},
+ {f:'api',t:'sms',label:'发送 6 位验证码'},
+ {f:'api',t:'db',label:'存 code 的 keyed hash（TTL）'},
+ {f:'app',t:'api',label:'POST /v1/auth/verify{phone, code}'},
+ {f:'api',t:'db',label:'校验；建 account；发 nm_ key（只存哈希）'},
+ {f:'api',t:'app',label:'nm_xxx + session key',kind:'ret'},
+ {f:'app',t:'api',label:'POST /v1/chat/completions（Bearer）'},
+ {f:'api',t:'db',label:'验 key 哈希；终身额度 + 每分钟速率'},
+ {f:'api',t:'up',label:'转发（服务端持有上游 key）'},
+ {f:'up',t:'api',label:'SSE chunk，含 usage',kind:'ret'},
+ {f:'api',t:'db',label:'ledger 一行；record 整轮 + blob'},
+ {f:'api',t:'app',label:'流式返回（排队时发空 choices）',kind:'ret'},
+ {f:'app',t:'api',label:'POST /v1/sync/push（另一条通道）'},
+ {f:'api',t:'db',label:'写 sync_messages；账号 seq + 1'}]};
+
+SPECS.arch.m11={alt:'Android 端侧运行时的启动链与执行层',bands:[
+ {code:'A',label:'触发',tone:'ext',nodes:[
+  {id:'launch',t:'冷启动',s:'点图标 · 进程起来'},
+  {id:'ui',t:'会话前台',s:'发消息 · 切回来'},
+  {id:'timer',t:'定时 · 推送',s:'闹钟 / 日程到点'}]},
+ {code:'B',label:'APK 进程',tone:'core',nodes:[
+  {id:'app',t:'MinisApp',s:'注册 handler · 起服务'},
+  {id:'chat',t:'ChatViewModel',s:'本轮对话 · 工具分派'},
+  {id:'exec',t:'ExecutionCoordinator',s:'按会话派发 · 超时'}]},
+ {code:'C',label:'沙箱',tone:'exec',nodes:[
+  {id:'kernel',t:'PRootKernel',s:'rootfs · 环境 · -b 参数'},
+  {id:'shell',t:'PersistentShell',s:'一条 /bin/sh 长驻'},
+  {id:'oneshot',t:'ShellExecutor',s:'一次性回退'}]},
+ {code:'D',label:'磁盘',tone:'data',nodes:[
+  {id:'rootfs',t:'alpine-rootfs',s:'3.21 · 首次解包'},
+  {id:'binds',t:'/var/minis 绑定',s:'8 个目录 · -b'},
+  {id:'tmp',t:'/tmp 回复',s:'offload 临时文件'}]}
+],edges:[
+ {from:'launch',to:'app',label:'boot'},
+ {from:'ui',to:'chat'},
+ {from:'timer',to:'chat'},
+ {from:'app',to:'kernel',label:'安装 + 预热'},
+ {from:'chat',to:'exec',label:'execute(session, cmd)'},
+ {from:'exec',to:'shell',label:'取 shell'},
+ {from:'exec',to:'oneshot',label:'无会话'},
+ {from:'kernel',to:'rootfs',label:'解包 · 覆盖脚本'},
+ {from:'shell',to:'binds',label:'-b 冻结在启动'},
+ {from:'oneshot',to:'tmp'}
+]};
+
+SPECS.seq.m11={alt:'Android 端侧：一句话如何变成 shell 输出',actors:[
+ {id:'u',t:'用户',kind:'app'},{id:'llm',t:'模型',kind:'ext'},
+ {id:'chat',t:'ChatViewModel',kind:'core'},{id:'exec',t:'执行协调器',kind:'core'},
+ {id:'sh',t:'持久 shell',kind:'exec'},{id:'lnx',t:'Alpine',kind:'ext'}],steps:[
+ {f:'u',t:'chat',label:'发送一句话'},
+ {f:'chat',t:'chat',label:'拼提示：schema + 技能 + MCP 摘要',kind:'self'},
+ {f:'chat',t:'llm',label:'ask(messages, tools)'},
+ {f:'llm',t:'chat',label:'tool_call：shell_execute',kind:'ret',frag:'一轮可能多次'},
+ {f:'chat',t:'chat',label:'ShellGuard 判：删 / 发 / 付 / 装',kind:'self',frag:'一轮可能多次'},
+ {f:'chat',t:'u',label:'高危才弹卡（180s 无回应=拒绝）',kind:'risk',frag:'一轮可能多次'},
+ {f:'u',t:'chat',label:'allow once / deny',kind:'ret',frag:'一轮可能多次'},
+ {f:'chat',t:'exec',label:'execute(sessionId, cmd, 900s)'},
+ {f:'exec',t:'sh',label:'无 shell → proot 起，-b 绑 /var/minis/*'},
+ {f:'sh',t:'lnx',label:'写 stdin + 唯一结束标记'},
+ {f:'lnx',t:'sh',label:'stdout + 退出码',kind:'ret'},
+ {f:'sh',t:'chat',label:'结果 + 耗时',kind:'ret'},
+ {f:'chat',t:'u',label:'时间线：命令 / 输出 / 批准',kind:'ret'}]};
+
+SPECS.arch.m12={alt:'Android 端侧工具框架：schema、三条路径、三道闸',bands:[
+ {code:'A',label:'输入',tone:'ext',nodes:[
+  {id:'call',t:'tool_call',s:'名字 + JSON 参数'},
+  {id:'cmd',t:'裸命令文本',s:'模型直接写 shell'},
+  {id:'agree',t:'人的点头',s:'allow / deny'}]},
+ {code:'B',label:'分派',tone:'core',nodes:[
+  {id:'schema',t:'AgentTools',s:'按能力拼 8 个'},
+  {id:'disp',t:'executeTool',s:'按名字分支'},
+  {id:'gate',t:'三道闸',s:'ShellGuard · Risk · Offload'}]},
+ {code:'C',label:'执行',tone:'exec',nodes:[
+  {id:'builtin',t:'内置 8 个',s:'文件 · 浏览器 · 记忆'},
+  {id:'prun',t:'PRoot 命令',s:'持久 shell'},
+  {id:'cli',t:'offload CLI',s:'24 个 handler'}]},
+ {code:'D',label:'能力',tone:'data',nodes:[
+  {id:'fileweb',t:'文件 · WebView',s:'绑定目录 / 3 个标签'},
+  {id:'mcp',t:'MCP · Skills',s:'servers.json · SKILL.md'},
+  {id:'andr',t:'Android · 屏幕',s:'15 项系统 API · 手势'}]}
+],edges:[
+ {from:'call',to:'schema',label:'schema'},
+ {from:'cmd',to:'disp'},
+ {from:'agree',to:'gate'},
+ {from:'schema',to:'disp'},
+ {from:'disp',to:'gate',label:'高危才问'},
+ {from:'gate',to:'builtin'},
+ {from:'gate',to:'prun'},
+ {from:'gate',to:'cli'},
+ {from:'builtin',to:'fileweb'},
+ {from:'prun',to:'mcp',label:'minis-mcp-cli'},
+ {from:'cli',to:'andr',label:'抽象 socket'}
+]};
+
+SPECS.seq.m12={alt:'Android 端侧：一次工具调用如何走到系统 API',actors:[
+ {id:'llm',t:'模型',kind:'ext'},{id:'chat',t:'ChatViewModel',kind:'core'},
+ {id:'gate',t:'审批卡',kind:'risk'},{id:'sh',t:'Alpine shell',kind:'exec'},
+ {id:'hd',t:'offload handler',kind:'core'},{id:'sys',t:'Android 系统',kind:'ext'}],steps:[
+ {f:'llm',t:'chat',label:'tool_call：shell_execute',kind:'ret',frag:'一轮可能多次'},
+ {f:'chat',t:'chat',label:'按名字分派；ShellGuard 四问',kind:'self',frag:'一轮可能多次'},
+ {f:'chat',t:'gate',label:'DESTRUCTIVE / OUTBOUND / MONEY 才弹',kind:'risk',frag:'一轮可能多次'},
+ {f:'gate',t:'chat',label:'ALLOW_ONCE / DENY / TIMEOUT',kind:'ret',frag:'一轮可能多次'},
+ {f:'chat',t:'sh',label:'写 stdin（该会话的持久 shell）',frag:'一轮可能多次'},
+ {f:'sh',t:'sh',label:'执行；遇到 android-* 触发 execve',kind:'self',frag:'一轮可能多次'},
+ {f:'sh',t:'hd',label:'抽象 socket：argv + env + cwd',frag:'一轮可能多次'},
+ {f:'hd',t:'sys',label:'调系统 API（如读日历）',frag:'一轮可能多次'},
+ {f:'sys',t:'hd',label:'数据回来',kind:'ret',frag:'一轮可能多次'},
+ {f:'hd',t:'sh',label:'写 /tmp 回复；回 (exit, path)',kind:'ret',frag:'一轮可能多次'},
+ {f:'sh',t:'sh',label:'execve 改写为 /bin/cat <tmpfile>',kind:'self',frag:'一轮可能多次'},
+ {f:'sh',t:'chat',label:'stdout + exit code',kind:'ret'},
+ {f:'chat',t:'chat',label:'结果回灌模型；时间线记一步',kind:'self'}]};
+
+SPECS.arch.m13={alt:'Android 端侧：一条任务从入站到落库',bands:[
+ {code:'A',label:'入站',tone:'ext',nodes:[
+  {id:'user',t:'人发一句话',s:'界面 · 回车'},
+  {id:'alarm',t:'定时到点',s:'闹钟唤醒'},
+  {id:'hub',t:'别处转来',s:'另一台设备的 task'}]},
+ {code:'B',label:'会话与回合',tone:'core',nodes:[
+  {id:'vm',t:'ChatViewModel',s:'一会话一个实例'},
+  {id:'loop',t:'runAgentLoop',s:'≤200 轮'},
+  {id:'queue',t:'排队与压缩',s:'QueuedPrompt'}]},
+ {code:'C',label:'执行',tone:'exec',nodes:[
+  {id:'writer',t:'增量落库',s:'文本块 · 工具块'},
+  {id:'tools',t:'工具分派',s:'executeTool'},
+  {id:'sh',t:'沙箱 shell',s:'该会话的 /bin/sh'},
+  {id:'off',t:'offload',s:'24 个 handler'}]},
+ {code:'D',label:'磁盘',tone:'data',nodes:[
+  {id:'db',t:'会话库',s:'消息 + 时间线'},
+  {id:'fs',t:'工作区文件',s:'/var/minis/workspace'},
+  {id:'svc',t:'前台服务',s:'保活 · 通知'}]}
+],edges:[
+ {from:'user',to:'vm',label:'send'},
+ {from:'alarm',to:'vm',label:'alarm'},
+ {from:'hub',to:'vm',label:'hub task'},
+ {from:'vm',to:'queue',label:'忙则入队'},
+ {from:'vm',to:'loop',label:'一轮'},
+ {from:'loop',to:'tools'},
+ {from:'loop',to:'writer'},
+ {from:'writer',to:'db',label:'append'},
+ {from:'tools',to:'sh'},
+ {from:'tools',to:'off'},
+ {from:'tools',to:'fs',label:'产物'}
+]};
+
+SPECS.seq.m13={alt:'Android 端侧：一轮任务里的多次工具往返',actors:[
+ {id:'u',t:'用户',kind:'app'},{id:'vm',t:'ChatViewModel',kind:'core'},
+ {id:'llm',t:'模型',kind:'ext'},{id:'tool',t:'工具分派',kind:'exec'},
+ {id:'sb',t:'沙箱 / handler',kind:'exec'},{id:'db',t:'会话库',kind:'store'}],steps:[
+ {f:'u',t:'vm',label:'发送：忙则排队，不抢占'},
+ {f:'vm',t:'vm',label:'清洗历史 → 裁剪 → 预算检查（超了就压缩）',kind:'self'},
+ {f:'vm',t:'llm',label:'stream(system + 8 个工具)',frag:'一轮 ≤200'},
+ {f:'llm',t:'vm',label:'tool_call：名字 + 参数',kind:'ret',frag:'一轮 ≤200'},
+ {f:'vm',t:'tool',label:'executeTool → 闸 → 路径',frag:'一轮 ≤200'},
+ {f:'tool',t:'sb',label:'shell / offload handler',frag:'一轮 ≤200'},
+ {f:'sb',t:'tool',label:'stdout + 退出码 / JSON',kind:'ret',frag:'一轮 ≤200'},
+ {f:'tool',t:'vm',label:'工具块（含耗时、批准）',kind:'ret',frag:'一轮 ≤200'},
+ {f:'vm',t:'db',label:'文本块与工具块增量落库',frag:'一轮 ≤200'},
+ {f:'vm',t:'llm',label:'回灌 tool_result，再问一次',frag:'一轮 ≤200'},
+ {f:'llm',t:'vm',label:'不再要工具：收尾文本',kind:'ret'},
+ {f:'vm',t:'vm',label:'抽查队列：有排队就开新一轮',kind:'self'},
+ {f:'vm',t:'u',label:'回复 + 时间线 + 可继续 / 可停止',kind:'ret'}]};
+
+SPECS.arch.m14={alt:'Android 端侧的三条互操作通道',bands:[
+ {code:'A',label:'谁在发起',tone:'ext',nodes:[
+  {id:'muse',t:'另一台 Muse',s:'手机 / 电脑'},
+  {id:'model',t:'模型自己',s:'shell 里敲命令'}]},
+ {code:'B',label:'通道',tone:'core',nodes:[
+  {id:'hub',t:'hub RPC',s:'13 个动作'},
+  {id:'mcp',t:'MCP',s:'servers.json'},
+  {id:'cli',t:'App CLI',s:'android-* · minis-*'}]},
+ {code:'C',label:'执行',tone:'exec',nodes:[
+  {id:'agent',t:'本机 Agent',s:'HeadlessChatRunner'},
+  {id:'guest',t:'minis-mcp-cli',s:'guest 内客户端'},
+  {id:'hand',t:'offload handler',s:'系统 API'}]},
+ {code:'D',label:'边界',tone:'risk',nodes:[
+  {id:'gate',t:'审批卡',s:'REMOTE · 本机弹'},
+  {id:'scope',t:'会话级覆盖',s:'mcp.db'},
+  {id:'perm',t:'系统权限',s:'Shizuku · 无障碍'}]}
+],edges:[
+ {from:'muse',to:'hub',label:'task / shell / screen'},
+ {from:'model',to:'mcp',label:'tools <server>'},
+ {from:'model',to:'cli',label:'PATH 里的名字'},
+ {from:'hub',to:'agent',label:'一整件事'},
+ {from:'mcp',to:'guest',label:'stdio / HTTP'},
+ {from:'cli',to:'hand',label:'execve 改写'},
+ {from:'agent',to:'gate',label:'每一步都要问'},
+ {from:'guest',to:'scope'},
+ {from:'hand',to:'perm',label:'permission_denied'}
+]};
+
+SPECS.seq.m14={alt:'Agent 到 Agent：一台手机收到另一台设备的整件事',actors:[
+ {id:'peer',t:'对端 Muse',kind:'ext'},{id:'hub',t:'hub（本机）',kind:'core'},
+ {id:'me',t:'本机的人',kind:'app'},{id:'vm',t:'本机 Agent',kind:'core'},
+ {id:'tool',t:'工具链',kind:'exec'}],steps:[
+ {f:'peer',t:'hub',label:'task(text, stream=true)'},
+ {f:'hub',t:'me',label:'REMOTE 卡：允许 Desk 操作本机？',kind:'risk'},
+ {f:'me',t:'hub',label:'allow once / always（绑设备 id）',kind:'ret'},
+ {f:'hub',t:'vm',label:'开新会话 + 整段任务 + turn_id'},
+ {f:'vm',t:'vm',label:'装配提示、跑循环（≤200 轮）',kind:'self'},
+ {f:'vm',t:'tool',label:'每一步都在本机过闸',frag:'任务可能很长'},
+ {f:'tool',t:'vm',label:'结果回灌',kind:'ret',frag:'任务可能很长'},
+ {f:'vm',t:'hub',label:'事件：文本 / 工具 / 本机审批卡',frag:'任务可能很长'},
+ {f:'hub',t:'peer',label:'流式回传',kind:'ret',frag:'任务可能很长'},
+ {f:'peer',t:'hub',label:'task.status / stop / approve',frag:'任务可能很长'},
+ {f:'hub',t:'vm',label:'查进度 / 取消（比较 turn_id）'},
+ {f:'vm',t:'hub',label:'收尾：消息落库、回执关闭',kind:'ret'}]};
+
+SPECS.arch.m15={alt:'Harness 的可移植内核与平台适配层',bands:[
+ {code:'A',label:'可移植内核',tone:'core',nodes:[
+  {id:'loop',t:'回合循环',s:'一轮 + 200 上限'},
+  {id:'prompt',t:'提示装配',s:'稳定 / 易变 / 运行时'},
+  {id:'tools',t:'工具与闸',s:'schema · 三道闸'},
+  {id:'prov',t:'provider',s:'SSE · tool_call 增量'}]},
+ {code:'B',label:'适配接口',tone:'exec',nodes:[
+  {id:'sbx',t:'SandboxBackend',s:'exec · 超时 · 串行'},
+  {id:'sto',t:'Storage',s:'会话库 · 文件根'},
+  {id:'dev',t:'DeviceBridge',s:'系统能力'}]},
+ {code:'C',label:'Android 实现',tone:'data',nodes:[
+  {id:'proot',t:'proot + Alpine',s:'execve 钩子'},
+  {id:'saf',t:'SQLite · SAF',s:'授权目录'},
+  {id:'hand',t:'24 个 handler',s:'系统 API'}]},
+ {code:'D',label:'换宿主',tone:'ext',nodes:[
+  {id:'new',t:'Linux · macOS · 容器',s:'同一套接口，另一套实现'}]}
+],edges:[
+ {from:'loop',to:'sbx',label:'执行接口'},
+ {from:'tools',to:'dev',label:'能力接口'},
+ {from:'prompt',to:'sto',label:'读上下文'},
+ {from:'sbx',to:'proot',label:'现有实现'},
+ {from:'dev',to:'hand'},
+ {from:'sto',to:'saf'},
+ {from:'proot',to:'new',label:'bwrap / sandbox-exec'},
+ {from:'hand',to:'new',label:'缺的留空'},
+ {from:'saf',to:'new',label:'换宿主存储'}
+]};
+
+SPECS.seq.m15={alt:'移植的顺序：先跑通一句话 + 一次 shell',actors:[
+ {id:'host',t:'新宿主',kind:'ext'},{id:'ad',t:'适配层',kind:'core'},
+ {id:'loop',t:'回合循环',kind:'core'},{id:'tool',t:'工具层',kind:'exec'},
+ {id:'sb',t:'沙箱',kind:'exec'}],steps:[
+ {f:'host',t:'ad',label:'起进程、定工作根目录'},
+ {f:'ad',t:'ad',label:'实现 SandboxBackend（本地进程 / 容器）',kind:'self'},
+ {f:'host',t:'loop',label:'载入 provider 配置与 key'},
+ {f:'loop',t:'loop',label:'装配提示：稳定前缀 + 易变段 + 运行时',kind:'self'},
+ {f:'loop',t:'tool',label:'注册 5 个基础工具（shell / 读 / 写 / 改 / 列）'},
+ {f:'tool',t:'sb',label:'冒烟：echo、读一个文件、超时'},
+ {f:'sb',t:'tool',label:'输出 + 退出码',kind:'ret'},
+ {f:'tool',t:'ad',label:'接 DeviceBridge，先全留空实现'},
+ {f:'ad',t:'loop',label:'就绪：可以接第一条任务'},
+ {f:'loop',t:'host',label:'落库 + 打印时间线',kind:'ret'}]};
+
+SPECS.arch.m16={alt:'无界面 runtime：内核、接口与宿主',bands:[
+ {code:'A',label:'谁在调用',tone:'ext',nodes:[
+  {id:'cli',t:'CLI 一次性',s:'run --task'},
+  {id:'http',t:'HTTP 常驻',s:'POST /run'},
+  {id:'up',t:'上游 Agent',s:'task + session'}]},
+ {code:'B',label:'会话层',tone:'core',nodes:[
+  {id:'rt',t:'SessionRuntime',s:'装配 · 单飞行'},
+  {id:'st',t:'SessionState',s:'历史 · 队列 · 取消'}]},
+ {code:'C',label:'内核',tone:'exec',nodes:[
+  {id:'tools',t:'工具表',s:'4 个 Tool'},
+  {id:'loop',t:'AgentLoop',s:'≤200 轮'},
+  {id:'guard',t:'ShellGuard',s:'四问'}]},
+ {code:'D',label:'宿主',tone:'data',nodes:[
+  {id:'sbx',t:'Sandbox',s:'进程 / 容器'},
+  {id:'store',t:'Store',s:'JSONL'},
+  {id:'sink',t:'EventSink',s:'NDJSON'},
+  {id:'appr',t:'ApprovalGate',s:'stdin · 180s'}]}
+],edges:[
+ {from:'cli',to:'rt'},
+ {from:'http',to:'rt'},
+ {from:'up',to:'rt'},
+ {from:'rt',to:'st',label:'一会话一份'},
+ {from:'rt',to:'loop',label:'run(task)'},
+ {from:'loop',to:'tools'},
+ {from:'loop',to:'guard',label:'命令先过'},
+ {from:'tools',to:'sbx',label:'exec'},
+ {from:'loop',to:'store',label:'append'},
+ {from:'loop',to:'sink',label:'emit'},
+ {from:'guard',to:'appr',label:'高危才问'}
+]};
+
+SPECS.seq.m16={alt:'无界面运行：从任务进来到事件流出',actors:[
+ {id:'caller',t:'调用方',kind:'app'},{id:'rt',t:'SessionRuntime',kind:'core'},
+ {id:'loop',t:'AgentLoop',kind:'core'},{id:'llm',t:'模型',kind:'ext'},
+ {id:'host',t:'沙箱 · 存储',kind:'exec'},{id:'ev',t:'事件流',kind:'store'}],steps:[
+ {f:'caller',t:'rt',label:'run(task, session, workspace)'},
+ {f:'rt',t:'rt',label:'载入历史、注册 4 个工具、给定系统提示',kind:'self'},
+ {f:'rt',t:'loop',label:'run()：单飞行'},
+ {f:'loop',t:'llm',label:'complete(system, messages, tools)',frag:'≤200 轮'},
+ {f:'llm',t:'loop',label:'tool_call：file_write',kind:'ret',frag:'≤200 轮'},
+ {f:'loop',t:'host',label:'原子写 hello.txt（35 字节）',frag:'≤200 轮'},
+ {f:'host',t:'loop',label:'wrote 35 bytes',kind:'ret',frag:'≤200 轮'},
+ {f:'loop',t:'ev',label:'tool_start → tool_result',frag:'≤200 轮'},
+ {f:'loop',t:'llm',label:'下一轮：回灌 tool_result',frag:'≤200 轮'},
+ {f:'llm',t:'loop',label:'tool_call：shell_execute rm -rf',kind:'ret',frag:'≤200 轮'},
+ {f:'loop',t:'caller',label:'DESTRUCTIVE：审批请求',kind:'risk',frag:'≤200 轮'},
+ {f:'caller',t:'loop',label:'无人应答 → TIMEOUT（按拒绝）',kind:'ret',frag:'≤200 轮'},
+ {f:'loop',t:'ev',label:'approval + 工具错误（未执行）',frag:'≤200 轮'},
+ {f:'loop',t:'llm',label:'最后一轮',frag:'≤200 轮'},
+ {f:'llm',t:'loop',label:'收尾文本：不再要工具',kind:'ret'},
+ {f:'loop',t:'ev',label:'done：turns / tokens / stopped_by',kind:'ret'},
+ {f:'loop',t:'caller',label:'Outcome + 最终文本',kind:'ret'}]};
+
+SPECS.seq.master={alt:'一轮对话的完整数据流',actors:[
+ {id:'u',t:'用户 / 客户端',kind:'app'},{id:'srv',t:'App Server',kind:'core'},
+ {id:'ag',t:'MuseAgent',kind:'core'},{id:'llm',t:'LLM',kind:'ext'},
+ {id:'sen',t:'Sentinel + Tool',kind:'risk'},{id:'db',t:'本地存储',kind:'store'},{id:'relay',t:'中继',kind:'ext'}],steps:[
+ {f:'u',t:'srv',label:'发送消息（REST）'},
+ {f:'srv',t:'db',label:'入队；审计写入 user'},
+ {f:'srv',t:'ag',label:'run(text)'},
+ {f:'ag',t:'ag',label:'系统提示（记忆/目标/日程）+ 裁窗口',kind:'self'},
+ {f:'ag',t:'llm',label:'ask(messages, tools)',frag:'agent loop'},
+ {f:'llm',t:'ag',label:'content + tool_calls',kind:'ret',frag:'agent loop'},
+ {f:'ag',t:'sen',label:'guard(call)',frag:'agent loop'},
+ {f:'sen',t:'u',label:'需要时弹审批卡',frag:'agent loop'},
+ {f:'u',t:'sen',label:'allow / once',kind:'ret',frag:'agent loop'},
+ {f:'sen',t:'sen',label:'Vault 替换 → 沙箱执行 → 脱敏',kind:'self',frag:'agent loop'},
+ {f:'sen',t:'ag',label:'ToolResult',kind:'ret',frag:'agent loop'},
+ {f:'ag',t:'db',label:'原子写会话；追加时间线'},
+ {f:'ag',t:'srv',label:'done + usage',kind:'ret'},
+ {f:'srv',t:'u',label:'WS：turn done',kind:'ret'},
+ {f:'srv',t:'relay',label:'异步：同步文本 + 事件'}]};
+
+window.__draw();
+(function(){
+  var btn=document.getElementById('playMaster');
+  if(!btn) return;
+  var timer=null;
+  btn.addEventListener('click',function(){
+    var svg=document.querySelector('[data-seq="master"] svg');
+    if(!svg) return;
+    var gs=svg.querySelectorAll('.stepg');
+    if(timer){clearInterval(timer);timer=null;btn.textContent='逐步播放';btn.setAttribute('aria-pressed','false');}
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){return;}
+    for(var i=0;i<gs.length;i++) gs[i].setAttribute('opacity','0.12');
+    var k=0;btn.textContent='播放中…';btn.setAttribute('aria-pressed','true');
+    timer=setInterval(function(){
+      if(k>=gs.length){clearInterval(timer);timer=null;btn.textContent='重播';btn.setAttribute('aria-pressed','false');return;}
+      gs[k].setAttribute('opacity','1');k++;
+    },420);
+  });
+  var links=[].slice.call(document.querySelectorAll('.nav a'));
+  var secs=links.map(function(a){return document.querySelector(a.getAttribute('href'));}).filter(Boolean);
+  var io=new IntersectionObserver(function(es){
+    es.forEach(function(e){
+      if(e.isIntersecting){
+        links.forEach(function(a){a.classList.remove('on');});
+        var l=links.filter(function(a){return a.getAttribute('href')==='#'+e.target.id;})[0];
+        if(l) l.classList.add('on');
+      }
+    });
+  },{rootMargin:'-45% 0px -50% 0px'});
+  secs.forEach(function(s){io.observe(s);});
+})();
+</script>
+</body>
+</html>

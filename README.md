@@ -8,8 +8,11 @@
 - [docs/PRD.html](docs/PRD.html) — PRD 网页版（浏览器直接打开，Mermaid 图在线渲染，侧边目录导航）
 - [docs/DESIGN.md](docs/DESIGN.md) — 完整方案设计文档（五层架构、3 条主链路顺序图、工具子时序、会话状态机、接口契约、10 个核心工具协议、验收标准、Runtime 落地状态、需求反向追溯与口径统一）
 - [docs/REQUIREMENTS-SRS.docx](docs/REQUIREMENTS-SRS.docx) — 需求规格说明书（工程规格：45 条功能需求、17 条非功能需求、8 类外部接口、活动时序与验收）
+- [docs/BROWSER-TOOL-DATAFLOW.md](docs/BROWSER-TOOL-DATAFLOW.md) — `browser_use` 浏览器工具数据链路分析（组件架构、调用时序、七动作数据形态、hand_over 接管、标签页状态机、四类数据落点、失败模式、移植形态与 AC-B1~B8 验收）
+- [docs/nanoMuse-模块架构与数据流.html](docs/nanoMuse-模块架构与数据流.html) — 源项目 16 个模块（M01–M16）架构与数据流原始报告
 - [docs/DESIGN.html](docs/DESIGN.html) — 方案设计文档网页版
 - [docs/REQUIREMENTS-SRS.html](docs/REQUIREMENTS-SRS.html) — 需求规格说明书网页版
+- [docs/BROWSER-TOOL-DATAFLOW.html](docs/BROWSER-TOOL-DATAFLOW.html) — 浏览器工具链路分析网页版（6 张 Mermaid 图）
 - [docs/RUNTIME-V1.2.html](docs/RUNTIME-V1.2.html) — V1.2 落地可视化报告
 
 > 网页版由 `tools/build_html.py` 从 Markdown / DOCX 生成；Mermaid 走 jsDelivr CDN，离线环境可退回 Markdown 源文件阅读。

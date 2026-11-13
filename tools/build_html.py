@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""把 DESIGN.md 与 REQUIREMENTS-SRS.docx 渲染成自包含 HTML。"""
+"""把 DESIGN.md、BROWSER-TOOL-DATAFLOW.md 与 REQUIREMENTS-SRS.docx 渲染成自包含 HTML。"""
 import html
 import io
 import os
@@ -26,7 +26,7 @@ body{margin:0;background:var(--paper);color:var(--ink);
 .topbar .brand{font-weight:700;color:var(--blue);font-size:15px}
 .topbar a{color:var(--ink);text-decoration:none;font-size:13px}
 .topbar a:hover{color:var(--blue)}
-.wrap{max-width:1280px;margin:0 auto;padding:28px;display:grid;grid-template-columns:230px 1fr;gap:36px}
+.wrap{max-width:1360px;margin:0 auto;padding:24px;display:grid;grid-template-columns:210px 1fr;gap:28px}
 aside{position:sticky;top:24px;align-self:start;max-height:calc(100vh - 48px);overflow:auto}
 aside .nav-title{font-size:12px;letter-spacing:.12em;color:#5F7380;margin:0 0 10px}
 aside ul{list-style:none;margin:0;padding:0}
@@ -35,7 +35,7 @@ aside a{display:block;padding:5px 10px;border-left:2px solid transparent;color:#
 aside a:hover{border-left-color:var(--blue);color:var(--blue);background:var(--soft2)}
 aside a.lvl2{padding-left:22px;font-size:12.5px;color:#5F7380}
 main{min-width:0}
-article{max-width:880px}
+article{max-width:100%}
 h1{font-size:25px;line-height:1.35;margin:8px 0 18px;padding-bottom:10px;border-bottom:2px solid var(--blue)}
 h2{font-size:19px;margin:30px 0 12px;color:var(--blue)}
 h3{font-size:15.5px;margin:22px 0 8px}
@@ -48,7 +48,8 @@ a{color:var(--blue)}
 code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;background:var(--soft);padding:1px 5px;border-radius:4px}
 pre{background:var(--soft);border:1px solid var(--rule);border-radius:8px;padding:14px;overflow-x:auto;line-height:1.6}
 pre code{background:none;padding:0;font-size:13px}
-pre.mermaid{background:#fff;border:1px dashed var(--rule);text-align:center;padding:18px}
+pre.mermaid{background:#fff;border:1px dashed var(--rule);text-align:left;padding:16px;overflow-x:auto;scrollbar-width:thin}
+pre.mermaid svg{max-width:none !important;height:auto}
 blockquote{margin:14px 0;padding:10px 16px;border-left:3px solid var(--blue);background:var(--soft2);border-radius:0 8px 8px 0;color:#33474F}
 table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;table-layout:fixed}
 th,td{border:1px solid var(--rule);padding:8px 10px;vertical-align:top;word-break:break-word}
@@ -91,7 +92,21 @@ def shell(title, subtitle, body, nav, mermaid=False):
     mermaid_js = ''
     if mermaid:
         mermaid_js = """<script src="https://fastly.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-<script>mermaid.initialize({startOnLoad:true,theme:'neutral',securityLevel:'loose',flowchart:{htmlLabels:true}});</script>"""
+<script>
+mermaid.initialize({startOnLoad:false,theme:'neutral',themeVariables:{noteBkgColor:'#EDF3F5',noteTextColor:'#0E1A22',noteBorderColor:'#C9D2D6',actorBkg:'#FFFFFF',actorBorder:'#12556F',actorTextColor:'#0E1A22',signalColor:'#12556F',signalTextColor:'#0E1A22'},securityLevel:'loose',flowchart:{htmlLabels:true,useMaxWidth:false},sequence:{useMaxWidth:false},state:{useMaxWidth:false}});
+mermaid.run({querySelector:'pre.mermaid'}).then(function(){
+  var fit=function(){
+    document.querySelectorAll('pre.mermaid > svg').forEach(function(svg){
+      if(!svg.dataset.nat){ svg.dataset.nat = String((svg.viewBox.baseVal&&svg.viewBox.baseVal.width)||svg.getBoundingClientRect().width); }
+      var nat=parseFloat(svg.dataset.nat);
+      var avail=(svg.parentElement.clientWidth||800)-32;
+      svg.style.width=(nat>avail?avail:nat)+'px';
+      svg.style.height='auto';
+    });
+  };
+  fit(); window.addEventListener('resize', fit);
+});
+</script>"""
     return """<!DOCTYPE html>
 <html lang="zh-CN"><head>
 <meta charset="utf-8">
@@ -105,6 +120,8 @@ def shell(title, subtitle, body, nav, mermaid=False):
   <a href="PRD.html">产品需求文档 (PRD)</a>
   <a href="DESIGN.html">方案设计文档</a>
   <a href="REQUIREMENTS-SRS.html">需求规格说明书</a>
+  <a href="BROWSER-TOOL-DATAFLOW.html">浏览器工具链路</a>
+  <a href="nanoMuse-模块架构与数据流.html">模块架构报告</a>
   <a href="https://github.com/xiaopengs/android-agent-framework-design">GitHub 仓库</a>
 </div></div>
 <div class="wrap">
@@ -139,6 +156,32 @@ body, nav = slug_nav(body)
 open(os.path.join(DOCS, 'DESIGN.html'), 'w', encoding='utf-8').write(
     shell('方案设计文档 · V1.2 Runtime', '五层架构 · 三模式调度 · 10 个核心工具 · 接口契约与验收 · Runtime 落地状态', body, nav, mermaid=True))
 
+
+def render_md(src_name, out_name, title, subtitle):
+    """把一份 Markdown（含 mermaid 块）渲染成同套外壳的 HTML。"""
+    blocks = []
+    text = open(os.path.join(DOCS, src_name), encoding='utf-8').read()
+
+    def stash2(m):
+        blocks.append(m.group(1))
+        return '\n\n@@MERMAID%d@@\n\n' % (len(blocks) - 1)
+
+    text = re.sub(r'```mermaid\n(.*?)```', stash2, text, flags=re.S)
+    body = markdown.markdown(text, extensions=['tables', 'fenced_code', 'sane_lists', 'attr_list', 'toc'], toc_depth=3)
+    for i, src in enumerate(blocks):
+        esc = html.escape(src, quote=False)
+        body = body.replace('<p>@@MERMAID%d@@</p>' % i, '<pre class="mermaid">%s</pre>' % esc)
+    body = re.sub(r'^<h1[^>]*>.*?</h1>', '', body, count=1, flags=re.S)
+    body, nav = slug_nav(body)
+    open(os.path.join(DOCS, out_name), 'w', encoding='utf-8').write(
+        shell(title, subtitle, body, nav, mermaid=True))
+    return len(blocks)
+
+
+n_browser = render_md('BROWSER-TOOL-DATAFLOW.md', 'BROWSER-TOOL-DATAFLOW.html',
+                      'browser_use 浏览器工具数据链路分析',
+                      '组件架构 · 调用时序 · 落点与边界 · 移植形态 · 验收口径')
+
 # ---------- 2. REQUIREMENTS-SRS.docx ----------
 buf = io.BytesIO(open(os.path.join(DOCS, 'REQUIREMENTS-SRS.docx'), 'rb').read())
 res = mammoth.convert_to_html(buf)
@@ -148,7 +191,7 @@ body = re.sub(r'<p><strong>目\s*录</strong></p>', '', body)
 body = re.sub(r'^\s*(?:<p>.*?</p>\s*)+(?=<table>)', '', body, flags=re.S)
 body, nav = slug_nav(body)
 open(os.path.join(DOCS, 'REQUIREMENTS-SRS.html'), 'w', encoding='utf-8').write(
-    shell('需求规格说明书', '45 条功能需求 · 17 条非功能需求 · 8 类外部接口 · 验收标准', body, nav, mermaid=False))
+    shell('需求规格说明书', '45 条功能需求 · 17 条非功能需求 · 8 类外部接口 · Loop/Runtime/端云协同 · 验收标准', body, nav, mermaid=False))
 
 # ---------- 3. PRD.md ----------
 prd_text = open(os.path.join(DOCS, 'PRD.md'), encoding='utf-8').read()
@@ -170,6 +213,7 @@ open(os.path.join(DOCS, 'PRD.html'), 'w', encoding='utf-8').write(
     shell('产品需求文档 (PRD) · V1.0', '反向设计 · 10 章模板适配 · 64 条功能需求 · 26 条非功能需求 · 18 个验收场景 · RTM 与需求追溯', prd_body, prd_nav, mermaid=True))
 
 print('DESIGN.html', os.path.getsize(os.path.join(DOCS, 'DESIGN.html')))
+print('BROWSER-TOOL-DATAFLOW.html', os.path.getsize(os.path.join(DOCS, 'BROWSER-TOOL-DATAFLOW.html')))
 print('SRS.html', os.path.getsize(os.path.join(DOCS, 'REQUIREMENTS-SRS.html')))
 print('PRD.html', os.path.getsize(os.path.join(DOCS, 'PRD.html')))
-print('mermaid blocks: DESIGN=%d PRD=%d' % (len(mermaids), len(prd_mermaids)))
+print('mermaid blocks: DESIGN=%d BROWSER=%d PRD=%d' % (len(mermaids), n_browser, len(prd_mermaids)))

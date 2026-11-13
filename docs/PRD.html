@@ -19,7 +19,7 @@ body{margin:0;background:var(--paper);color:var(--ink);
 .topbar .brand{font-weight:700;color:var(--blue);font-size:15px}
 .topbar a{color:var(--ink);text-decoration:none;font-size:13px}
 .topbar a:hover{color:var(--blue)}
-.wrap{max-width:1280px;margin:0 auto;padding:28px;display:grid;grid-template-columns:230px 1fr;gap:36px}
+.wrap{max-width:1360px;margin:0 auto;padding:24px;display:grid;grid-template-columns:210px 1fr;gap:28px}
 aside{position:sticky;top:24px;align-self:start;max-height:calc(100vh - 48px);overflow:auto}
 aside .nav-title{font-size:12px;letter-spacing:.12em;color:#5F7380;margin:0 0 10px}
 aside ul{list-style:none;margin:0;padding:0}
@@ -28,7 +28,7 @@ aside a{display:block;padding:5px 10px;border-left:2px solid transparent;color:#
 aside a:hover{border-left-color:var(--blue);color:var(--blue);background:var(--soft2)}
 aside a.lvl2{padding-left:22px;font-size:12.5px;color:#5F7380}
 main{min-width:0}
-article{max-width:880px}
+article{max-width:100%}
 h1{font-size:25px;line-height:1.35;margin:8px 0 18px;padding-bottom:10px;border-bottom:2px solid var(--blue)}
 h2{font-size:19px;margin:30px 0 12px;color:var(--blue)}
 h3{font-size:15.5px;margin:22px 0 8px}
@@ -41,7 +41,8 @@ a{color:var(--blue)}
 code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;background:var(--soft);padding:1px 5px;border-radius:4px}
 pre{background:var(--soft);border:1px solid var(--rule);border-radius:8px;padding:14px;overflow-x:auto;line-height:1.6}
 pre code{background:none;padding:0;font-size:13px}
-pre.mermaid{background:#fff;border:1px dashed var(--rule);text-align:center;padding:18px}
+pre.mermaid{background:#fff;border:1px dashed var(--rule);text-align:left;padding:16px;overflow-x:auto;scrollbar-width:thin}
+pre.mermaid svg{max-width:none !important;height:auto}
 blockquote{margin:14px 0;padding:10px 16px;border-left:3px solid var(--blue);background:var(--soft2);border-radius:0 8px 8px 0;color:#33474F}
 table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;table-layout:fixed}
 th,td{border:1px solid var(--rule);padding:8px 10px;vertical-align:top;word-break:break-word}
@@ -60,6 +61,8 @@ img{max-width:100%;height:auto;border:1px solid var(--rule);border-radius:8px}
   <a href="PRD.html">产品需求文档 (PRD)</a>
   <a href="DESIGN.html">方案设计文档</a>
   <a href="REQUIREMENTS-SRS.html">需求规格说明书</a>
+  <a href="BROWSER-TOOL-DATAFLOW.html">浏览器工具链路</a>
+  <a href="nanoMuse-模块架构与数据流.html">模块架构报告</a>
   <a href="https://github.com/xiaopengs/android-agent-framework-design">GitHub 仓库</a>
 </div></div>
 <div class="wrap">
@@ -7117,5 +7120,19 @@ SandboxRuntime（隔离进程 + 超时强杀）
 </article></main>
 </div>
 <script src="https://fastly.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-<script>mermaid.initialize({startOnLoad:true,theme:'neutral',securityLevel:'loose',flowchart:{htmlLabels:true}});</script>
+<script>
+mermaid.initialize({startOnLoad:false,theme:'neutral',themeVariables:{noteBkgColor:'#EDF3F5',noteTextColor:'#0E1A22',noteBorderColor:'#C9D2D6',actorBkg:'#FFFFFF',actorBorder:'#12556F',actorTextColor:'#0E1A22',signalColor:'#12556F',signalTextColor:'#0E1A22'},securityLevel:'loose',flowchart:{htmlLabels:true,useMaxWidth:false},sequence:{useMaxWidth:false},state:{useMaxWidth:false}});
+mermaid.run({querySelector:'pre.mermaid'}).then(function(){
+  var fit=function(){
+    document.querySelectorAll('pre.mermaid > svg').forEach(function(svg){
+      if(!svg.dataset.nat){ svg.dataset.nat = String((svg.viewBox.baseVal&&svg.viewBox.baseVal.width)||svg.getBoundingClientRect().width); }
+      var nat=parseFloat(svg.dataset.nat);
+      var avail=(svg.parentElement.clientWidth||800)-32;
+      svg.style.width=(nat>avail?avail:nat)+'px';
+      svg.style.height='auto';
+    });
+  };
+  fit(); window.addEventListener('resize', fit);
+});
+</script>
 </body></html>
