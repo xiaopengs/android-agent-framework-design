@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>工具召回机制与浏览器调用案例走查</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2312556F'/%3E%3Ctext x='16' y='22' font-size='17' font-family='sans-serif' fill='white' text-anchor='middle' font-weight='700'%3EA%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --ink:#0E1A22; --paper:#F7F8F7; --rule:#C9D2D6; --blue:#12556F;
+  --amber:#B37A2A; --teal:#1F6B5E; --soft:#F0F2F1; --soft2:#F4F7F8;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:15px;line-height:1.75}
+.topbar{border-bottom:1px solid var(--rule);background:#fff}
+.topbar-in{max-width:1280px;margin:0 auto;padding:14px 28px;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap}
+.topbar .brand{font-weight:700;color:var(--blue);font-size:15px}
+.topbar a{color:var(--ink);text-decoration:none;font-size:13px}
+.topbar a:hover{color:var(--blue)}
+.wrap{max-width:1360px;margin:0 auto;padding:24px;display:grid;grid-template-columns:210px 1fr;gap:28px}
+aside{position:sticky;top:24px;align-self:start;max-height:calc(100vh - 48px);overflow:auto}
+aside .nav-title{font-size:12px;letter-spacing:.12em;color:#5F7380;margin:0 0 10px}
+aside ul{list-style:none;margin:0;padding:0}
+aside li{margin:2px 0}
+aside a{display:block;padding:5px 10px;border-left:2px solid transparent;color:#33474F;text-decoration:none;font-size:13.5px;line-height:1.4}
+aside a:hover{border-left-color:var(--blue);color:var(--blue);background:var(--soft2)}
+aside a.lvl2{padding-left:22px;font-size:12.5px;color:#5F7380}
+main{min-width:0}
+article{max-width:100%}
+h1{font-size:25px;line-height:1.35;margin:8px 0 18px;padding-bottom:10px;border-bottom:2px solid var(--blue)}
+h2{font-size:19px;margin:30px 0 12px;color:var(--blue)}
+h3{font-size:15.5px;margin:22px 0 8px}
+h4{font-size:14px;margin:16px 0 6px}
+p{margin:10px 0}
+ul,ol{margin:10px 0;padding-left:22px}
+li{margin:5px 0}
+strong{color:#10262E}
+a{color:var(--blue)}
+code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;background:var(--soft);padding:1px 5px;border-radius:4px}
+pre{background:var(--soft);border:1px solid var(--rule);border-radius:8px;padding:14px;overflow-x:auto;line-height:1.6}
+pre code{background:none;padding:0;font-size:13px}
+pre.mermaid{background:#fff;border:1px dashed var(--rule);text-align:left;padding:16px;overflow-x:auto;scrollbar-width:thin}
+pre.mermaid svg{max-width:none !important;height:auto}
+blockquote{margin:14px 0;padding:10px 16px;border-left:3px solid var(--blue);background:var(--soft2);border-radius:0 8px 8px 0;color:#33474F}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;table-layout:fixed}
+th,td{border:1px solid var(--rule);padding:8px 10px;vertical-align:top;word-break:break-word}
+th{background:#F2F2F2;font-weight:600;text-align:left}
+tr:nth-child(even) td{background:#FBFCFC}
+img{max-width:100%;height:auto;border:1px solid var(--rule);border-radius:8px}
+.meta{color:#5F7380;font-size:13px;margin-bottom:20px}
+@media (max-width:920px){
+  .wrap{grid-template-columns:1fr;padding:18px}
+  aside{position:static;max-height:none;margin-bottom:10px}
+}
+</style>
+</head><body>
+<div class="topbar"><div class="topbar-in">
+  <span class="brand">Android 端侧 Agent 框架</span>
+  <a href="PRD.html">产品需求文档 (PRD)</a>
+  <a href="DESIGN.html">方案设计文档</a>
+  <a href="REQUIREMENTS-SRS.html">需求规格说明书</a>
+  <a href="BROWSER-TOOL-DATAFLOW.html">浏览器工具链路</a>
+  <a href="TOOL-RECALL-AND-BROWSER-CASES.html">工具召回与案例</a>
+  <a href="nanoMuse-模块架构与数据流.html">模块架构报告</a>
+  <a href="https://github.com/xiaopengs/android-agent-framework-design">GitHub 仓库</a>
+</div></div>
+<div class="wrap">
+<aside><nav><p class="nav-title">目录</p><ul><li><a class=" lvl2" href="#h-1">0 结论先行</a></li><li><a class=" lvl2" href="#h-2">1 整体架构：一次请求要过四道判定</a></li><li><a class=" lvl2" href="#h-3">2 工具召回的真实形态</a></li><li><a class=" lvl2" href="#h-4">2.1 没有检索，只有全量注入</a></li><li><a class=" lvl2" href="#h-5">2.2 三条召回通路</a></li><li><a class=" lvl2" href="#h-6">2.3 description 就是召回率</a></li><li><a class=" lvl2" href="#h-7">3 案例 A：帮我查一下 GitHub 上的 Agent 项目</a></li><li><a class=" lvl2" href="#h-8">4 案例 B：帮我订一下今晚的机票，去北京的</a></li><li><a class=" lvl2" href="#h-9">4.1 会不会触发 browser_use</a></li><li><a class=" lvl2" href="#h-10">4.2 如果强行让它走一遍，会停在哪</a></li><li><a class=" lvl2" href="#h-11">4.3 正确的形态：不是缺工具，是缺业务能力</a></li><li><a class=" lvl2" href="#h-12">4.4 一句话总结这个案例</a></li><li><a class=" lvl2" href="#h-13">5 判定矩阵：什么任务该走哪条通道</a></li><li><a class=" lvl2" href="#h-14">6 缺口与改造清单</a></li><li><a class=" lvl2" href="#h-15">P0：让路由能认出「需要浏览器」</a></li><li><a class=" lvl2" href="#h-16">P0：browser_use 的风险档要从 OUTBOUND 细化</a></li><li><a class=" lvl2" href="#h-17">P1：工具集分层下发</a></li><li><a class=" lvl2" href="#h-18">P1：描述改写为「何时用 / 何时不用」</a></li><li><a class=" lvl2" href="#h-19">P2：把 hand_over 接进运行时</a></li><li><a class=" lvl2" href="#h-20">7 验收用例</a></li><li><a class=" lvl2" href="#h-21">8 结论</a></li></ul></nav></aside>
+<main><article>
+<h1>工具召回机制与浏览器调用案例走查</h1>
+<p class="meta">四道判定 · 三条召回通路 · 案例 A/B 逐层走查 · 能力矩阵 · 改造清单</p>
+
+<blockquote>
+<p>本文回答一个具体问题：一句自然语言（例如「帮我订一下今晚的机票，去北京的」）进来，框架是怎么决定「用不用 browser_use」的？以及它在什么条件下才会真的被调用。
+与《方案设计文档 V1.1/V1.2》《browser_use 浏览器工具数据链路分析》同口径；凡代码可查的结论标「实证」，凡设计取舍标「设计」，凡能力缺失标「缺口」。</p>
+</blockquote>
+<h2 id="h-1">0 结论先行</h2>
+<p>三句话：</p>
+<ol>
+<li><strong>本项目没有工具检索层。</strong> 10 个工具在编译期固定装配，每个回合把全部 schema 连同 system prompt 一起发给模型，由模型自己挑。所谓「召回」，实际是「全量注入 + 模型选择」。</li>
+<li><strong>「帮我订一下今晚的机票」这句话，现在连端侧 Loop 都不会启动。</strong> Router 用字面匹配工具名来判「是否依赖端侧独占能力」，这句话里没有 <code>browser_use</code> 字样，因此被判为「无本地工具依赖」→ 在线时直接 CLOUD，浏览器工具零出场（实证，见 <code>router/RootRouter.kt</code> 的 <code>decide()</code>）。</li>
+<li><strong>即便强制走 LOCAL，也不该让 browser_use 去「下单」。</strong> 它能做的是「看」——导航、读页面、截图；「订」包含账号、实名、支付三段，属 <code>RiskClass.MONEY</code>，必须人工确认，末段必须 hand_over。runtime 里 <code>click</code>/<code>input</code> 还直接返回「需 WebView 支持」（实证，<code>tools/PlatformTools.kt:163</code>）。</li>
+</ol>
+<h2 id="h-2">1 整体架构：一次请求要过四道判定</h2>
+<p>五层是老口径，这里补的是「判定点」——每一层都在替下一层缩小可能性，工具召回只是其中一个判定点。</p>
+<pre class="mermaid">flowchart TB
+    IN["用户 Query 或三方 Agent"]
+    IN --&gt; R["RootRouter 判执行端"]
+    R --&gt;|"LOCAL"| LOOP["AgentLooper 回合循环"]
+    R --&gt;|"HYBRID"| BUS["CloudAgentBus 信封"]
+    R --&gt;|"CLOUD"| CLOUD["云端 Agent 端侧零启动"]
+    BUS --&gt;|"下发 TOOL_CALL"| LOOP
+    LOOP --&gt;|"全量 10 条 ToolSpec"| MODEL["模型自选工具"]
+    MODEL --&gt;|"tool_calls"| TDC["ToolDispatchCenter 校验"]
+    TDC --&gt; GATE["风控与审批三级"]
+    GATE --&gt; EXEC["工具与沙箱执行"]
+    EXEC --&gt; ST["会话库与事件流"]
+    ST --&gt;|"ToolResult 回灌"| LOOP
+</pre>
+<p>四道判定及其归属：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">判定</th>
+<th style="text-align: left;">在哪</th>
+<th style="text-align: left;">判什么</th>
+<th style="text-align: left;">结果影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">1</td>
+<td style="text-align: left;">执行端</td>
+<td style="text-align: left;">RootRouter</td>
+<td style="text-align: left;">网络、独占工具依赖、隐私词、来源（fromCloud）、调用方偏好</td>
+<td style="text-align: left;">LOCAL / HYBRID / CLOUD；决定端侧内核是否启动</td>
+</tr>
+<tr>
+<td style="text-align: left;">2</td>
+<td style="text-align: left;">工具选择</td>
+<td style="text-align: left;">模型</td>
+<td style="text-align: left;">读 10 条 spec 的 description，决定发不发、发哪个</td>
+<td style="text-align: left;">产生 tool_calls；这是唯一的「语义召回」环节</td>
+</tr>
+<tr>
+<td style="text-align: left;">3</td>
+<td style="text-align: left;">按名分发与校验</td>
+<td style="text-align: left;">ToolDispatchCenter</td>
+<td style="text-align: left;">工具存在性、required/类型、OffloadGate、来源标记</td>
+<td style="text-align: left;">未知工具/参数非法直接失败；云端调用强制同链路风控</td>
+</tr>
+<tr>
+<td style="text-align: left;">4</td>
+<td style="text-align: left;">风险与审批</td>
+<td style="text-align: left;">ShellGuard / BrowserGuard / RiskGate</td>
+<td style="text-align: left;">SAFE / INSTALL / DESTRUCTIVE / OUTBOUND / REMOTE / <strong>MONEY</strong></td>
+<td style="text-align: left;">非 SAFE 一律进审批；MONEY 与支付语义强制人确认</td>
+</tr>
+</tbody>
+</table>
+<p>一条容易被忽略的事实：<strong>第 2 道是概率性的，第 1、3、4 道是确定性的</strong>。工具选错可以靠第 3、4 道兜住（校验与审批），但「该用端侧却判了 CLOUD」这种第 1 道的错，后面三道都看不见——因为内核没跑。</p>
+<h2 id="h-3">2 工具召回的真实形态</h2>
+<h3 id="h-4">2.1 没有检索，只有全量注入</h3>
+<pre><code class="language-kotlin">// Runtime.kt：编译期固定装配，运行时不做裁剪
+val tools: List&lt;Tool&gt; = defaultTools(root.resolve(&quot;system&quot;), memory, capability)
+
+// AgentLoop.kt:86：每回合全量下发
+provider.complete(system = systemPrompt, messages = window, tools = tools.map { it.spec })
+</code></pre>
+<p><code>defaultTools()</code> 里就是写死的十个：<code>shell_execute</code>、<code>file_read</code>、<code>file_write</code>、<code>file_edit</code>、<code>read_image</code>、<code>browser_use</code>、<code>memory_write</code>、<code>memory_get</code>、<code>android_calendar</code>、<code>android_notify</code>（实证，<code>tools/PlatformTools.kt:353</code>）。</p>
+<p>这个选择在 10 个工具的规模下是对的：十条 schema 大约几百 token，做向量检索的收益抵不过检索本身的误召与延迟。<strong>但它有一个隐性上限</strong>——工具涨到 30 个以上，全量注入会开始吃掉上下文预算，并且相似工具之间会互相「抢召」（比如 <code>browser_use</code> 与将来的 <code>http_fetch</code>）。</p>
+<h3 id="h-5">2.2 三条召回通路</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">通路</th>
+<th style="text-align: left;">机制</th>
+<th style="text-align: left;">确定性</th>
+<th style="text-align: left;">谁在用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">隐式：模型自选</td>
+<td style="text-align: left;">spec 全量注入，模型读 description 判断</td>
+<td style="text-align: left;">概率性，取决于描述质量与模型</td>
+<td style="text-align: left;">LOCAL / HYBRID 下的常规任务</td>
+</tr>
+<tr>
+<td style="text-align: left;">显式：调用方声明</td>
+<td style="text-align: left;"><code>AgentRequest.explicitTools = ["browser_use"]</code>；<code>fromCloud=true</code> 亦强制端侧</td>
+<td style="text-align: left;">确定</td>
+<td style="text-align: left;">三方 Agent、云端子任务、评测用例</td>
+</tr>
+<tr>
+<td style="text-align: left;">协议直达：按名调用</td>
+<td style="text-align: left;"><code>McpAdapter</code> / <code>A2AAdapter</code> / <code>AppFunctionAdapter</code> → <code>dispatch.invokeRaw(name, args)</code></td>
+<td style="text-align: left;">确定，不过模型</td>
+<td style="text-align: left;">外部工具网关、原生能力导出</td>
+</tr>
+</tbody>
+</table>
+<p>协议直达值得单独说：它把「选择」这件事从模型手里拿走，直接按名字进调度中心，<strong>但风控一条不少</strong>——<code>invokeRaw</code> 内部仍然走 <code>invoke()</code>，<code>OffloadGate</code>、参数校验、审计照旧。这也是「云端下发 TOOL_CALL」与「本地模型自选」能共用同一条安全链路的原因。</p>
+<h3 id="h-6">2.3 description 就是召回率</h3>
+<p>模型能看到的只有一行：</p>
+<blockquote>
+<p><code>browser_use</code> — 浏览器自动化：navigate 打开公网页面、extract 提取正文。click/input 需 Android WebView 支持。</p>
+</blockquote>
+<p>这句话同时在做三件事：告诉模型<strong>能干什么</strong>（navigate/extract）、<strong>边界在哪</strong>（公网）、以及<strong>悄悄暴露了实现限制</strong>（click/input 需 WebView）。第三件事其实该挪到能力矩阵里，留在描述里会让模型在需要点击时提前放弃。</p>
+<p>好的描述应当回答「何时用」而不只是「是什么」：例如「当任务需要读取某个公网页面的实时内容、且该内容无法通过 API 获取时使用；不要在已知有结构化接口的站点使用」。这是把召回策略写进接口，而不是留给模型猜。</p>
+<h2 id="h-7">3 案例 A：帮我查一下 GitHub 上的 Agent 项目</h2>
+<p>这句话<strong>是</strong> browser_use 的典型场景，但按当前实现<strong>不会</strong>走到它。逐步走一遍：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">步</th>
+<th style="text-align: left;">发生了什么</th>
+<th style="text-align: left;">结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">1</td>
+<td style="text-align: left;">Router 扫 query 找独占工具名：<code>browser_use</code>、<code>shell_execute</code>… 一个都不在句子里</td>
+<td style="text-align: left;"><code>hits = []</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">2</td>
+<td style="text-align: left;">无隐私词、非 fromCloud、在线、<code>allowCloud=true</code></td>
+<td style="text-align: left;">判 <strong>CLOUD</strong>，reason「无本地工具依赖，云端全权」</td>
+</tr>
+<tr>
+<td style="text-align: left;">3</td>
+<td style="text-align: left;"><code>runCloud</code> 分支执行，端侧 <code>AgentLoop</code> 不构造</td>
+<td style="text-align: left;">10 条 spec 不下发，浏览器工具零出场</td>
+</tr>
+<tr>
+<td style="text-align: left;">4</td>
+<td style="text-align: left;">云侧若也具备抓取能力，任务照样完成，但<strong>端侧没有任何审计与截图留痕</strong></td>
+<td style="text-align: left;">用户拿到结果，链路不可观测</td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid">sequenceDiagram
+    autonumber
+    participant U as 用户
+    participant R as RootRouter
+    participant M as 模型
+    participant C as 云端 Agent
+    participant ST as 会话与事件流
+
+    U-&gt;&gt;R: 帮我查 GitHub 上的 Agent 项目
+    R-&gt;&gt;R: 独占工具名匹配 = 空
+    R-&gt;&gt;C: 判定 CLOUD，端侧内核不启动
+    C-&gt;&gt;M: 云端自行规划与抓取
+    M--&gt;&gt;C: 结果
+    C--&gt;&gt;U: 文本答复
+    R-&gt;&gt;ST: router_decision 落事件流
+    Note over U,ST: 端侧未产生任何 tool_start / tool_result
+</pre>
+<p>要让它走 HYBRID（云端规划、端侧抓页面、结果回传），需要满足其一：</p>
+<ul>
+<li>调用方显式声明：<code>explicitTools=["browser_use"]</code>（三方 Agent 或上层 planner 填）；</li>
+<li>用户话术命中隐私词（「本地」「不上云」）→ 强制 LOCAL，但仍要靠模型自己选工具；</li>
+<li>Router 的判定从「字面匹配工具名」升级为「意图标签匹配」——这是根本解，见第 6 节。</li>
+</ul>
+<h2 id="h-8">4 案例 B：帮我订一下今晚的机票，去北京的</h2>
+<p>这句话比案例 A 更值得拆，因为它同时暴露三类问题：路由、能力、风险。</p>
+<h3 id="h-9">4.1 会不会触发 browser_use</h3>
+<p>不会。三层原因，逐层落地：</p>
+<ol>
+<li><strong>路由层</strong>：句子里没有工具名，<code>hits=[]</code>，在线即 CLOUD。端侧不启动，浏览器工具不存在于这次执行里。</li>
+<li><strong>能力层</strong>：即使强制 LOCAL、即使模型选了 <code>browser_use</code>，runtime 的实现也只能 <code>navigate</code> 与 <code>extract</code>；<code>click</code>/<code>input</code> 直接返回「需 WebView/无障碍能力，纯后台骨架不支持」。<strong>它能看，不能点。</strong></li>
+<li><strong>风险层</strong>：即便点击能力补齐，「提交订单 / 支付」属 <code>RiskClass.MONEY</code>（<code>Contracts.kt:101</code>、<code>ShellGuard</code> 的支付识别），必须弹审批；验证码与支付密码必须 hand_over，模型不得代输。</li>
+</ol>
+<h3 id="h-10">4.2 如果强行让它走一遍，会停在哪</h3>
+<pre class="mermaid">sequenceDiagram
+    autonumber
+    participant U as 用户
+    participant R as RootRouter
+    participant AL as AgentLooper
+    participant TDC as ToolDispatchCenter
+    participant BK as browser_use
+    participant AP as 审批与接管
+
+    U-&gt;&gt;R: 订今晚去北京的机票
+    R-&gt;&gt;R: 独占工具名匹配 = 空
+    alt 允许上云
+        R--&gt;&gt;U: 判 CLOUD，端侧不执行，任务交给云端或 App 直达
+    else 显式声明或隐私要求
+        R-&gt;&gt;AL: 判 LOCAL 或 HYBRID
+        AL-&gt;&gt;TDC: tool_call browser_use navigate 航司官网
+        TDC-&gt;&gt;BK: 放行 OUTBOUND，抓取航班列表
+        BK--&gt;&gt;AL: 页面文本与标题
+        AL-&gt;&gt;TDC: tool_call browser_use click 提交订单
+        TDC--&gt;&gt;AL: Error 需 WebView 支持
+        Note over TDC,AP: 补上点击能力后仍会在此拦下
+        TDC-&gt;&gt;AP: RiskGate 判 MONEY，要求人确认
+        AP--&gt;&gt;U: 请确认订单并完成支付
+        AP--&gt;&gt;TDC: 超时或拒绝则失败，且不自动重试
+    end
+</pre>
+<p>四个停点，任一个都足以让「订票」不成：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">停点</th>
+<th style="text-align: left;">触发条件</th>
+<th style="text-align: left;">系统行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">路由</td>
+<td style="text-align: left;">无工具名依赖且允许上云</td>
+<td style="text-align: left;">判 CLOUD，端侧完全不参与</td>
+</tr>
+<tr>
+<td style="text-align: left;">能力</td>
+<td style="text-align: left;">需要点击「提交/支付」</td>
+<td style="text-align: left;"><code>browser_use</code> 返回不支持</td>
+</tr>
+<tr>
+<td style="text-align: left;">风控</td>
+<td style="text-align: left;">命中 MONEY</td>
+<td style="text-align: left;">强制人工确认，超时即失败</td>
+</tr>
+<tr>
+<td style="text-align: left;">交互</td>
+<td style="text-align: left;">需要登录、验证码、支付密码</td>
+<td style="text-align: left;">hand_over 挂起，人完成后才继续</td>
+</tr>
+</tbody>
+</table>
+<h3 id="h-11">4.3 正确的形态：不是缺工具，是缺业务能力</h3>
+<p>订票需要三样东西：<strong>账号体系、实名校验、支付通道</strong>。这三样都不是「浏览器能点」就能解决的，它们是业务能力，必须由 OTA / 航司的官方接口或 App 提供。</p>
+<p>所以正确的分层是：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">环节</th>
+<th style="text-align: left;">该谁做</th>
+<th style="text-align: left;">为什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">查航班、比价、读退改签规则</td>
+<td style="text-align: left;"><code>browser_use</code> 只读（navigate + extract）</td>
+<td style="text-align: left;">页面是公开信息，读即可，不需要登录态</td>
+</tr>
+<tr>
+<td style="text-align: left;">选座、填乘机人、锁价</td>
+<td style="text-align: left;">官方 API / App Function</td>
+<td style="text-align: left;">需要账号与实名信息，模拟点击既脆弱又危险</td>
+</tr>
+<tr>
+<td style="text-align: left;">提交订单、支付</td>
+<td style="text-align: left;">官方 API，且强制 MONEY 级审批</td>
+<td style="text-align: left;">资金动作不可由模型自主完成</td>
+</tr>
+<tr>
+<td style="text-align: left;">验证码、支付密码</td>
+<td style="text-align: left;">hand_over</td>
+<td style="text-align: left;">凭证不得进入模型上下文</td>
+</tr>
+</tbody>
+</table>
+<p>runtime 现状：<code>AppFunctionAdapter</code> 只是把工具表导出成 <code>{functions:[…]}</code> 的 schema（实证，<code>interop/A2AAdapter.kt:91</code>），并没有接入任何订票服务。<strong>这是能力缺口，不是工具缺口</strong>——再加十个工具也订不了票，只有接上服务方接口才行。</p>
+<h3 id="h-12">4.4 一句话总结这个案例</h3>
+<blockquote>
+<p>browser_use 是「看网页的手」，不是「下单的手」。它可以替你把航班查清楚，但不能替你把钱付出去。</p>
+</blockquote>
+<h2 id="h-13">5 判定矩阵：什么任务该走哪条通道</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">任务形态</th>
+<th style="text-align: left;">首选通道</th>
+<th style="text-align: left;">风险档</th>
+<th style="text-align: left;">端侧是否必须</th>
+<th style="text-align: left;">当前实现</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">读公网页面、抓实时信息</td>
+<td style="text-align: left;">browser_use（navigate/extract）</td>
+<td style="text-align: left;">OUTBOUND</td>
+<td style="text-align: left;">否，但端侧有登录态时优先</td>
+<td style="text-align: left;">可用（HTTP 抓取）</td>
+</tr>
+<tr>
+<td style="text-align: left;">需要点击/输入/登录态页面</td>
+<td style="text-align: left;">browser_use（click/input/hand_over）</td>
+<td style="text-align: left;">OUTBOUND → MONEY</td>
+<td style="text-align: left;">是（WebView 独占）</td>
+<td style="text-align: left;">缺口</td>
+</tr>
+<tr>
+<td style="text-align: left;">订票、下单、支付</td>
+<td style="text-align: left;">官方 API / App Function + 审批</td>
+<td style="text-align: left;">MONEY</td>
+<td style="text-align: left;">否</td>
+<td style="text-align: left;">缺口（无业务接入）</td>
+</tr>
+<tr>
+<td style="text-align: left;">本地文件处理、脚本</td>
+<td style="text-align: left;">shell / file_*</td>
+<td style="text-align: left;">SAFE/DESTRUCTIVE</td>
+<td style="text-align: left;">是</td>
+<td style="text-align: left;">可用（沙箱）</td>
+</tr>
+<tr>
+<td style="text-align: left;">读本地图片</td>
+<td style="text-align: left;">read_image</td>
+<td style="text-align: left;">SAFE</td>
+<td style="text-align: left;">是</td>
+<td style="text-align: left;">可用</td>
+</tr>
+<tr>
+<td style="text-align: left;">记忆读写</td>
+<td style="text-align: left;">memory_*</td>
+<td style="text-align: left;">SAFE</td>
+<td style="text-align: left;">是</td>
+<td style="text-align: left;">可用</td>
+</tr>
+<tr>
+<td style="text-align: left;">日历、通知</td>
+<td style="text-align: left;">android_calendar / android_notify</td>
+<td style="text-align: left;">SAFE</td>
+<td style="text-align: left;">是</td>
+<td style="text-align: left;">可用</td>
+</tr>
+<tr>
+<td style="text-align: left;">外部工具生态</td>
+<td style="text-align: left;">MCP / A2A / App Function 旁路</td>
+<td style="text-align: left;">同工具</td>
+<td style="text-align: left;">视工具</td>
+<td style="text-align: left;">适配层已就绪，未接真实服务</td>
+</tr>
+</tbody>
+</table>
+<p>这张表的价值在于：它把「召回失败」拆成了三种完全不同的病——<strong>路由把请求送错了地方</strong>、<strong>工具没有这项能力</strong>、<strong>业务没有这项服务</strong>。三种病的药完全不同。</p>
+<h2 id="h-14">6 缺口与改造清单</h2>
+<h3 id="h-15">P0：让路由能认出「需要浏览器」</h3>
+<p>现状：<code>RootRouter.decide()</code> 用 <code>rawQuery.contains(toolName)</code> 判独占工具依赖，自然语言几乎永不命中。</p>
+<p>改法：给每个工具打<strong>意图标签</strong>（<code>web.read</code> / <code>web.interact</code> / <code>fs.write</code> / <code>money.pay</code> …），Router 匹配标签而非工具名；标签可由轻量分类器或关键词表产生，且必须可配置（对齐 DESIGN 第 12 章「路由规则配置化」）。</p>
+<pre><code class="language-kotlin">// 目标形态（设计）
+val intents = IntentClassifier.classify(req.rawQuery)          // [&quot;web.read&quot;, &quot;time.today&quot;]
+val hits = config.intentToTools.filterKeys { it in intents }    // browser_use
+</code></pre>
+<p>副作用要一起考虑：意图识别一旦误判成「需要端侧」，会把本可云端完成的任务拖回本地，抬高延迟与耗电。所以标签匹配只应作为「禁止 CLOUD」的<strong>下界</strong>，不应作为「必须 LOCAL」的强制。</p>
+<h3 id="h-16">P0：browser_use 的风险档要从 OUTBOUND 细化</h3>
+<p>现状：<code>BrowserUseTool</code> 只做出网审批（OUTBOUND）。补齐 click 后，「提交订单/支付/删除」这类动作必须升到 MONEY，并复用同一张审批卡。</p>
+<h3 id="h-17">P1：工具集分层下发</h3>
+<p>10 个可以全量；到 20+ 时按 Router 判定的 capability 子集裁剪，避免 schema 预算膨胀与近似工具抢召。</p>
+<h3 id="h-18">P1：描述改写为「何时用 / 何时不用」</h3>
+<p>把实现限制（「需 WebView 支持」）移出 description，改为能力矩阵字段 <code>availability: LOCAL_ONLY</code>，让模型看到的是能力边界而非宿主缺陷。</p>
+<h3 id="h-19">P2：把 hand_over 接进运行时</h3>
+<p>现状：审批有 <code>ApprovalGate</code>（含 180s 超时），但没有「页面接管」这种长时挂起语义。补齐后，订票类任务的最后一步才有合法的落点。</p>
+<h2 id="h-20">7 验收用例</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">编号</th>
+<th style="text-align: left;">输入</th>
+<th style="text-align: left;">通过条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">AC-R1</td>
+<td style="text-align: left;">「帮我查一下 GitHub 上的 Agent 项目」+ <code>explicitTools=["browser_use"]</code></td>
+<td style="text-align: left;">Router 判 LOCAL 或 HYBRID，事件流出现 <code>router_decision</code> 且 <code>local_exclusive_hits</code> 含 browser_use</td>
+</tr>
+<tr>
+<td style="text-align: left;">AC-R2</td>
+<td style="text-align: left;">同上但不显式声明</td>
+<td style="text-align: left;">允许判 CLOUD；若判 CLOUD，端侧不得出现任何 <code>tool_start</code>（避免「影子执行」）</td>
+</tr>
+<tr>
+<td style="text-align: left;">AC-R3</td>
+<td style="text-align: left;">「订今晚去北京的机票」</td>
+<td style="text-align: left;">不得由 <code>browser_use</code> 完成下单；命中 MONEY 时必须有审批记录，拒绝/超时后不自动重试</td>
+</tr>
+<tr>
+<td style="text-align: left;">AC-R4</td>
+<td style="text-align: left;">强制 LOCAL 后请求 click</td>
+<td style="text-align: left;">返回明确的能力不支持错误码，不得静默失败，模型能据此改走其它通道</td>
+</tr>
+<tr>
+<td style="text-align: left;">AC-R5</td>
+<td style="text-align: left;">意图标签误判为 <code>web.read</code> 但目标为内网地址</td>
+<td style="text-align: left;">在 <code>loadUrl</code>/HTTP 请求之前返回 <code>risk_block</code>，事件流留痕</td>
+</tr>
+<tr>
+<td style="text-align: left;">AC-R6</td>
+<td style="text-align: left;">MCP 按名调用 <code>browser_use</code></td>
+<td style="text-align: left;">跳过模型选择，但仍产生 <code>offload_gate</code> 与 <code>tool_start</code> 审计，风控不旁路</td>
+</tr>
+</tbody>
+</table>
+<h2 id="h-21">8 结论</h2>
+<p>这套框架的「召回」不是搜索，而是<strong>四道确定性判定把可能性逐层收窄，只留一道概率性判定（模型选择）</strong>。它的稳健性来自后三道（校验、风控、审批）兜得住模型选错；它的脆弱性来自第一道——Router 判错执行端时，后面三道全部失效，因为内核根本没启动。</p>
+<p>「订机票」这句话之所以值得写进文档，正因为它同时踩中三处：路由把它送走、能力只够看不够点、业务根本没有服务可接。修好它需要三件不同的事，而不是「再加一个工具」。</p>
+</article></main>
+</div>
+<script src="https://fastly.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+mermaid.initialize({startOnLoad:false,theme:'neutral',themeVariables:{noteBkgColor:'#EDF3F5',noteTextColor:'#0E1A22',noteBorderColor:'#C9D2D6',actorBkg:'#FFFFFF',actorBorder:'#12556F',actorTextColor:'#0E1A22',signalColor:'#12556F',signalTextColor:'#0E1A22'},securityLevel:'loose',flowchart:{htmlLabels:true,useMaxWidth:false},sequence:{useMaxWidth:false},state:{useMaxWidth:false}});
+mermaid.run({querySelector:'pre.mermaid'}).then(function(){
+  var fit=function(){
+    document.querySelectorAll('pre.mermaid > svg').forEach(function(svg){
+      if(!svg.dataset.nat){ svg.dataset.nat = String((svg.viewBox.baseVal&&svg.viewBox.baseVal.width)||svg.getBoundingClientRect().width); }
+      var nat=parseFloat(svg.dataset.nat);
+      var avail=(svg.parentElement.clientWidth||800)-32;
+      svg.style.width=(nat>avail?avail:nat)+'px';
+      svg.style.height='auto';
+    });
+  };
+  fit(); window.addEventListener('resize', fit);
+});
+</script>
+</body></html>

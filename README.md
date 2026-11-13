@@ -9,6 +9,8 @@
 - [docs/DESIGN.md](docs/DESIGN.md) — 完整方案设计文档（五层架构、3 条主链路顺序图、工具子时序、会话状态机、接口契约、10 个核心工具协议、验收标准、Runtime 落地状态、需求反向追溯与口径统一）
 - [docs/REQUIREMENTS-SRS.docx](docs/REQUIREMENTS-SRS.docx) — 需求规格说明书（工程规格：45 条功能需求、17 条非功能需求、8 类外部接口、活动时序与验收）
 - [docs/BROWSER-TOOL-DATAFLOW.md](docs/BROWSER-TOOL-DATAFLOW.md) — `browser_use` 浏览器工具数据链路分析（组件架构、调用时序、七动作数据形态、hand_over 接管、标签页状态机、四类数据落点、失败模式、移植形态与 AC-B1~B8 验收）
+- [docs/TOOL-RECALL-AND-BROWSER-CASES.md](docs/TOOL-RECALL-AND-BROWSER-CASES.md) — 工具召回机制与浏览器调用案例走查（四道判定、三条召回通路、两个真实 query 的逐层走查、能力矩阵、P0/P1/P2 改造清单、AC-R1~R6）
+- [docs/TOOL-RECALL-AND-BROWSER-CASES.html](docs/TOOL-RECALL-AND-BROWSER-CASES.html) — 该文档网页版（3 张 Mermaid 图）
 - [docs/nanoMuse-模块架构与数据流.html](docs/nanoMuse-模块架构与数据流.html) — 源项目 16 个模块（M01–M16）架构与数据流原始报告
 - [docs/DESIGN.html](docs/DESIGN.html) — 方案设计文档网页版
 - [docs/REQUIREMENTS-SRS.html](docs/REQUIREMENTS-SRS.html) — 需求规格说明书网页版

@@ -121,6 +121,7 @@ mermaid.run({querySelector:'pre.mermaid'}).then(function(){
   <a href="DESIGN.html">方案设计文档</a>
   <a href="REQUIREMENTS-SRS.html">需求规格说明书</a>
   <a href="BROWSER-TOOL-DATAFLOW.html">浏览器工具链路</a>
+  <a href="TOOL-RECALL-AND-BROWSER-CASES.html">工具召回与案例</a>
   <a href="nanoMuse-模块架构与数据流.html">模块架构报告</a>
   <a href="https://github.com/xiaopengs/android-agent-framework-design">GitHub 仓库</a>
 </div></div>
@@ -182,6 +183,10 @@ n_browser = render_md('BROWSER-TOOL-DATAFLOW.md', 'BROWSER-TOOL-DATAFLOW.html',
                       'browser_use 浏览器工具数据链路分析',
                       '组件架构 · 调用时序 · 落点与边界 · 移植形态 · 验收口径')
 
+n_recall = render_md('TOOL-RECALL-AND-BROWSER-CASES.md', 'TOOL-RECALL-AND-BROWSER-CASES.html',
+                    '工具召回机制与浏览器调用案例走查',
+                    '四道判定 · 三条召回通路 · 案例 A/B 逐层走查 · 能力矩阵 · 改造清单')
+
 # ---------- 2. REQUIREMENTS-SRS.docx ----------
 buf = io.BytesIO(open(os.path.join(DOCS, 'REQUIREMENTS-SRS.docx'), 'rb').read())
 res = mammoth.convert_to_html(buf)
@@ -214,6 +219,7 @@ open(os.path.join(DOCS, 'PRD.html'), 'w', encoding='utf-8').write(
 
 print('DESIGN.html', os.path.getsize(os.path.join(DOCS, 'DESIGN.html')))
 print('BROWSER-TOOL-DATAFLOW.html', os.path.getsize(os.path.join(DOCS, 'BROWSER-TOOL-DATAFLOW.html')))
+print('TOOL-RECALL-AND-BROWSER-CASES.html', os.path.getsize(os.path.join(DOCS, 'TOOL-RECALL-AND-BROWSER-CASES.html')))
 print('SRS.html', os.path.getsize(os.path.join(DOCS, 'REQUIREMENTS-SRS.html')))
 print('PRD.html', os.path.getsize(os.path.join(DOCS, 'PRD.html')))
-print('mermaid blocks: DESIGN=%d BROWSER=%d PRD=%d' % (len(mermaids), n_browser, len(prd_mermaids)))
+print('mermaid blocks: DESIGN=%d BROWSER=%d RECALL=%d PRD=%d' % (len(mermaids), n_browser, n_recall, len(prd_mermaids)))
