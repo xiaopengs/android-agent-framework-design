@@ -123,20 +123,47 @@ interface SessionStore {
     fun saveTurn(sessionId: String, turn: Int, status: String)
 }
 
-/** 工具执行时能拿到的一切。 */
+/** 工具执行时能拿到的一切。traceId / fromCloud 为 V1.2 新增，末尾带默认值保持旧装配兼容。 */
 data class ToolContext(
     val sessionId: String,
     val sandbox: Sandbox,
     val approvals: ApprovalGate,
     val events: EventSink,
     val store: SessionStore,
+    /** 全链路追踪 ID（DESIGN.md 1.5 可观测原则）。 */
+    val traceId: String = "",
+    /** 该调用是否由云端 TOOL_CALL 下发：必须与本地触发走同一条风控链路。 */
+    val fromCloud: Boolean = false,
 )
 
-data class ToolResult(val content: String, val isError: Boolean = false) {
+/**
+ * 统一工具返回。前两个字段保持 V1.1 兼容；code / riskBlock / riskMsg 对齐 DESIGN.md 6.3。
+ */
+data class ToolResult(
+    val content: String,
+    val isError: Boolean = false,
+    val code: Int = 0,
+    val riskBlock: Boolean = false,
+    val riskMsg: String = "",
+) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("content", content)
         put("is_error", isError)
+        put("code", code)
+        put("risk_block", riskBlock)
+        put("risk_msg", riskMsg)
     }
+
+    /** DESIGN.md 6.3 / 第 7 章的标准化出参，供总线回传云端与 MCP 响应使用。 */
+    fun toProtocolJson(toolName: String, sessionId: String, elapsedMs: Long): JSONObject = JSONObject()
+        .put("success", !isError)
+        .put("code", if (isError && code == 0) -1 else code)
+        .put("msg", if (isError) content.take(300) else "ok")
+        .put("data", JSONObject().put("tool_name", toolName).put("content", content)
+            .put("elapsed_ms", elapsedMs))
+        .put("risk_block", riskBlock)
+        .put("risk_msg", riskMsg)
+        .put("session_id", sessionId)
 }
 
 interface Tool {

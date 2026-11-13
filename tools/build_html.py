@@ -8,7 +8,7 @@ import re
 import mammoth
 import markdown
 
-ROOT = '/home/user/Doubao/chats/38453485016707842/nanoMuse-agent-framework-design'
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOCS = os.path.join(ROOT, 'docs')
 
 CSS = """
@@ -102,6 +102,7 @@ def shell(title, subtitle, body, nav, mermaid=False):
 </head><body>
 <div class="topbar"><div class="topbar-in">
   <span class="brand">Android 端侧 Agent 框架</span>
+  <a href="PRD.html">产品需求文档 (PRD)</a>
   <a href="DESIGN.html">方案设计文档</a>
   <a href="REQUIREMENTS-SRS.html">需求规格说明书</a>
   <a href="https://github.com/xiaopengs/android-agent-framework-design">GitHub 仓库</a>
@@ -136,7 +137,7 @@ for i, src in enumerate(mermaids):
 body = re.sub(r'^<h1[^>]*>.*?</h1>', '', body, count=1, flags=re.S)
 body, nav = slug_nav(body)
 open(os.path.join(DOCS, 'DESIGN.html'), 'w', encoding='utf-8').write(
-    shell('方案设计文档 · V1.1 Final-Dev', '五层架构 · 三模式调度 · 10 个核心工具 · 接口契约与验收', body, nav, mermaid=True))
+    shell('方案设计文档 · V1.2 Runtime', '五层架构 · 三模式调度 · 10 个核心工具 · 接口契约与验收 · Runtime 落地状态', body, nav, mermaid=True))
 
 # ---------- 2. REQUIREMENTS-SRS.docx ----------
 buf = io.BytesIO(open(os.path.join(DOCS, 'REQUIREMENTS-SRS.docx'), 'rb').read())
@@ -147,8 +148,28 @@ body = re.sub(r'<p><strong>目\s*录</strong></p>', '', body)
 body = re.sub(r'^\s*(?:<p>.*?</p>\s*)+(?=<table>)', '', body, flags=re.S)
 body, nav = slug_nav(body)
 open(os.path.join(DOCS, 'REQUIREMENTS-SRS.html'), 'w', encoding='utf-8').write(
-    shell('需求规格说明书', '37 条功能需求 · 14 条非功能需求 · 7 类外部接口 · 验收标准', body, nav, mermaid=False))
+    shell('需求规格说明书', '45 条功能需求 · 17 条非功能需求 · 8 类外部接口 · 验收标准', body, nav, mermaid=False))
+
+# ---------- 3. PRD.md ----------
+prd_text = open(os.path.join(DOCS, 'PRD.md'), encoding='utf-8').read()
+# 移除手写目录区块：侧边栏已生成自动目录，避免手写锚点与自动 id 不一致
+prd_text = re.sub(r'^## 目录\n.*?\n---\n', '', prd_text, count=1, flags=re.S | re.M)
+prd_mermaids = []
+
+def prd_stash(m):
+    prd_mermaids.append(m.group(1))
+    return '\n\n@@MERMAID%d@@\n\n' % (len(prd_mermaids) - 1)
+
+prd_text = re.sub(r'```mermaid\n(.*?)```', prd_stash, prd_text, flags=re.S)
+prd_body = markdown.markdown(prd_text, extensions=['tables', 'fenced_code', 'sane_lists', 'attr_list', 'toc'], toc_depth=3)
+for i, src in enumerate(prd_mermaids):
+    prd_body = prd_body.replace('<p>@@MERMAID%d@@</p>' % i, '<pre class="mermaid">%s</pre>' % html.escape(src, quote=False))
+prd_body = re.sub(r'^<h1[^>]*>.*?</h1>', '', prd_body, count=1, flags=re.S)
+prd_body, prd_nav = slug_nav(prd_body)
+open(os.path.join(DOCS, 'PRD.html'), 'w', encoding='utf-8').write(
+    shell('产品需求文档 (PRD) · V1.0', '反向设计 · 10 章模板适配 · 64 条功能需求 · 26 条非功能需求 · 18 个验收场景 · RTM 与需求追溯', prd_body, prd_nav, mermaid=True))
 
 print('DESIGN.html', os.path.getsize(os.path.join(DOCS, 'DESIGN.html')))
 print('SRS.html', os.path.getsize(os.path.join(DOCS, 'REQUIREMENTS-SRS.html')))
-print('mermaid blocks:', len(mermaids))
+print('PRD.html', os.path.getsize(os.path.join(DOCS, 'PRD.html')))
+print('mermaid blocks: DESIGN=%d PRD=%d' % (len(mermaids), len(prd_mermaids)))

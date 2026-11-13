@@ -1,30 +1,58 @@
-# Android 端侧 Agent 框架 · 方案设计文档
+# Android 端侧 Agent 框架 · 产品需求与方案设计文档
 
-基于 nanoMuse Android 端源码拆解整理的端侧 Agent 后台框架开发基线文档，V1.1 Final-Dev 版本。
+基于 nanoMuse Android 端源码拆解整理的端侧 Agent 后台框架开发基线文档，V1.2-PRD 版本；配套 **V1.2 Runtime** 五层可运行骨架。
 
 ## 目录
 
-- [docs/DESIGN.md](docs/DESIGN.md) — 完整方案设计文档（五层架构、3 条主链路顺序图、工具子时序、会话状态机、接口契约、10 个核心工具协议、验收标准）
-- [docs/REQUIREMENTS-SRS.docx](docs/REQUIREMENTS-SRS.docx) — 需求规格说明书（功能列表、模块列表、功能说明、活动时序、非功能与验收）
-- [docs/DESIGN.html](docs/DESIGN.html) — 方案设计文档网页版（浏览器直接打开，Mermaid 图在线渲染，侧边目录导航）
-- [docs/REQUIREMENTS-SRS.html](docs/REQUIREMENTS-SRS.html) — 需求规格说明书网页版（内嵌原图，同套排版外壳）
+- [docs/PRD.md](docs/PRD.md) — **产品需求文档（PRD）**：按 10 章模板反向设计，含产品定位、角色权限、口径裁决、64 条功能需求、26 条非功能需求、AI 质量专项、18 个验收场景、RTM 与需求追溯映射
+- [docs/PRD.html](docs/PRD.html) — PRD 网页版（浏览器直接打开，Mermaid 图在线渲染，侧边目录导航）
+- [docs/DESIGN.md](docs/DESIGN.md) — 完整方案设计文档（五层架构、3 条主链路顺序图、工具子时序、会话状态机、接口契约、10 个核心工具协议、验收标准、Runtime 落地状态、需求反向追溯与口径统一）
+- [docs/REQUIREMENTS-SRS.docx](docs/REQUIREMENTS-SRS.docx) — 需求规格说明书（工程规格：45 条功能需求、17 条非功能需求、8 类外部接口、活动时序与验收）
+- [docs/DESIGN.html](docs/DESIGN.html) — 方案设计文档网页版
+- [docs/REQUIREMENTS-SRS.html](docs/REQUIREMENTS-SRS.html) — 需求规格说明书网页版
+- [docs/RUNTIME-V1.2.html](docs/RUNTIME-V1.2.html) — V1.2 落地可视化报告
 
 > 网页版由 `tools/build_html.py` 从 Markdown / DOCX 生成；Mermaid 走 jsDelivr CDN，离线环境可退回 Markdown 源文件阅读。
 
-## 代码骨架（可运行 runtime）
+## 文档体系与定位
 
-- [runtime/README.md](runtime/README.md) — 无界面后台 runtime 的编译、运行方式与 NDJSON 事件契约
-- [runtime/COVERAGE.md](runtime/COVERAGE.md) — 与五层架构、10 个 P0 工具清单的逐项对齐矩阵、缺口与补齐路线
-- [runtime/dist/nm-headless-runtime.zip](runtime/dist/nm-headless-runtime.zip) — 最小可运行打包（源码 + 依赖 jar + 预编译 jar + 冒烟脚本）
-- 预编译产物：`runtime/out/nm-headless.jar`（JDK 11，`java -cp` 直接运行）
+四份文档各司其职，**不互相替代**；口径冲突以 `PRD.md` 1.6「口径裁决表」为单一事实源（共 9 项裁决）：
 
-当前骨架为 Layer4 内核 + Layer5 本地执行/风控的纯 LOCAL 垂直切片，已实现 4 个基础工具；协同路由、通信总线、平台能力工具与 MCP/A2A 适配的缺口见 COVERAGE.md。
+| 文档 | 视角 | 回答的问题 |
+| :--- | :--- | :--- |
+| `docs/PRD.md` | 产品需求 | 为什么做、给谁做、做到什么程度、怎么验收、先做哪个 |
+| `docs/DESIGN.md` | 方案设计 | 怎么实现（架构 / 时序 / 契约 / 状态机） |
+| `docs/REQUIREMENTS-SRS.docx` | 工程规格 | 有哪些功能条目、接口与数据（含上游源码拆解事实） |
+| `runtime/COVERAGE.md` | 落地对齐 | 设计里哪条已写成代码、哪条还是缺口 |
+
+> 阅读顺序：PRD 第 2/3 章 → DESIGN 第 2/3 章 → PRD 第 8/9 章与附录 G → COVERAGE.md。
+> `PRD.md` 采用**反向设计**：以已定稿的方案为输入，反推产品需求与验收，并用附录 E（RTM）、附录 F（反向设计映射表）把「需求 ↔ 设计 ↔ 代码 ↔ 验收」四端锁死。
+
+## 代码骨架（可运行 runtime，V1.2）
+
+- [runtime/README.md](runtime/README.md) — 五层装配、编译/运行方式、CLI 参数、NDJSON 事件契约、换宿主指南
+- [runtime/COVERAGE.md](runtime/COVERAGE.md) — 与五层架构、10 个 P0 工具清单的逐项对齐矩阵、验收对照与剩余缺口
+- [runtime/dist/nm-headless-runtime.zip](runtime/dist/nm-headless-runtime.zip) — 可运行打包（源码 + 依赖 jar + 预编译 jar + 冒烟脚本）
+- 预编译产物：`runtime/out/nm-headless.jar`（自包含 kotlin-stdlib，JDK 11+，`java -cp` 直接运行）
+
+**V1.2 状态**：五层架构全部落地，10 个 P0 工具全集实现，LOCAL / CLOUD / HYBRID 三条主链路端到端可跑；内置自检 31/31、端到端冒烟 18/18 全绿。
+
+```bash
+cd runtime
+./tools/build.sh                                  # 编译（自动找 kotlinc 或 Gradle embeddable）
+java -cp out/nm-headless.jar:libs/json.jar \
+  nanomuse.headless.MainKt --self-test --root ./nm-run     # 31 项自检
+python3 tools/smoke.py                            # 18 项端到端冒烟
+```
+
+剩余缺口（真实云端传输、SSE 流式、Android 平台 Handler、proot 隔离、授权态持久化）见 `runtime/COVERAGE.md` 第七节；对应排期与风险量化见 `PRD.md` 第 10 章。
 
 ## 文档要点
 
 - 五层架构：RootRouter 协同调度 → CloudAgentBus 通信总线 → 会话与队列 → Agent Looper 内核 → 工具中台与风控沙箱
-- 三种调度模式：LOCAL 本地执行 / CLOUD 云端全权 / HYBRID 端云协同
+- 三种调度模式：LOCAL 本地执行 / CLOUD 云端全权 / HYBRID 端云协同（命中独占工具禁止 CLOUD）
 - 10 个 P0 端侧独占工具：`shell_execute`、`file_read`、`file_write`、`file_edit`、`read_image`、`browser_use`、`memory_write`、`memory_get`、`android_calendar`、`android_notify`
+- 统一口径：Android 11（API 30）及以上；工具数量 10 个；架构层数五层；上游 13 个 A2A 动作 / 20 个 App 命令为参考事实，不纳入本产品验收
 - 图均为 Mermaid 源码，可在 Typora / Obsidian / Mermaid LiveEditor 中直接渲染
 
 ## 版本
@@ -35,3 +63,7 @@
 | V1.1 | 新增 RootRouter 决策与端云通信总线 |
 | V1.1-Final | 10 个 P0 工具全集对齐 |
 | V1.1-Final-Dev | 开发落地增强：架构图、顺序图、接口契约、状态机 |
+| V1.2-Runtime | 五层架构全部落地 + 10 工具 + 三链路闭环 + MCP/A2A 适配 + 31 项自检 / 18 项冒烟 |
+| V1.2-PRD | 新增产品需求文档（10 章模板反向设计）；统一 9 处口径冲突；补需求追溯矩阵与设计缺口说明 |
+
+> 合规声明：本方案为产品设计参考，具体实施请结合公司合规与法务要求确认。

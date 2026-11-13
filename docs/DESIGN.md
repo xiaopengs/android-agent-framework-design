@@ -10,6 +10,8 @@
 | V1.1 | 2026-11-13 | 架构升级：新增 RootRouter 端云决策、CloudAgentBus 通信总线、五层端云协同架构 |
 | V1.1-Final | 2026-11-13 | 定稿：10 个 P0 核心工具全集，路由、风控、MCP、协同、验收对齐 |
 | V1.1-Final-Dev | 2026-11-13 | 开发落地增强版：增加架构图、3 套核心顺序图、模块接口契约、状态机、调用边界 |
+| V1.2-Runtime | 2026-11-13 | 代码落地：五层架构全部实现、10 个 P0 工具全集、三条主链路端到端闭环、MCP/A2A 适配、31 项自检与 18 项冒烟（详见第 16 章与 `runtime/COVERAGE.md`） |
+| V1.2-PRD | 2026-11-13 | 需求反向补齐：新增 [`PRD.md`](PRD.md) 产品需求文档（按 10 章模板反向设计）；统一与 SRS 的 9 处口径冲突；补充需求追踪矩阵与设计缺口说明（见第 17 章） |
 
 ## 1 文档概述
 
@@ -19,7 +21,7 @@
 
 ### 1.2 适用范围
 
-- 运行环境：Android 10+，纯后台 Service，无 UI 依赖
+- 运行环境：Android 11（API 30）及以上，AArch64 优先；纯后台 Service，无 UI 依赖（与 `REQUIREMENTS-SRS.docx` 统一，见第 17 章裁决 C-01）
 - 任务来源：用户 Query、三方 Agent 调用、定时任务、A2A 跨设备任务、云端协同子任务
 - 调度模式：LOCAL / CLOUD / HYBRID
 - 交付形态：可独立剥离的端侧 Agent Runtime SDK
@@ -645,3 +647,124 @@ ToolDispatchCenter 10 工具统一中台
 7. MCP Server 适配层，对外暴露工具 schema
 8. A2A 跨设备通信适配层
 9. 审计日志、trace 埋点、可观测模块
+
+## 16 Runtime 落地状态（V1.2）
+
+> 本章记录方案基线在 `runtime/` 代码骨架中的落地情况，逐项对齐矩阵与验证记录见 [runtime/COVERAGE.md](../runtime/COVERAGE.md)。
+
+### 16.1 已落地交付物
+
+| 交付物（第 15 章） | 代码位置 | 状态 |
+| :--- | :--- | :--- |
+| 1 RootRouter + 单元测试 | `router/RootRouter.kt` | 已实现，决策表 / 独占工具禁 CLOUD / 离线降级均有自检 |
+| 2 CloudAgentBus | `bus/CloudAgentBus.kt` | 已实现，信封 + ACK + 重试 + 死信 + 流式 + 幂等 |
+| 3 SessionManager + TaskQueue | `session/*.kt` | 已实现，状态机持久化、断点续跑、会话内串行 / 会话间并行、并发上限 |
+| 4 AgentLooper + ContextManager | `core/AgentLoop.kt`、`context/ContextManager.kt` | 已实现，轮次上限 + 历史压缩 / 截断 / 摘要回收 |
+| 5 ToolDispatchCenter + 三层风控 | `tools/ToolDispatchCenter.kt`、`guard/*.kt` | 已实现，统一校验 + 审计；RiskGate 授权态持久化待补 |
+| 6 10 个工具 + 参数校验 + 单元测试 | `tools/BuiltinTools.kt`、`tools/PlatformTools.kt` | 全部实现，逐工具有自检用例 |
+| 7 MCP 适配层 | `interop/McpAdapter.kt` | JSON-RPC 协议层已通（tools/list、tools/call），传输 Server 待接 |
+| 8 A2A 适配层 | `interop/A2AAdapter.kt` | 任务 ↔ 信封转换已通，真实跨设备传输待接 |
+| 9 审计 / trace / 可观测 | `host/MultiSessionEventSink.kt` | 已实现，全链路 traceId 贯穿、按会话 NDJSON 分流 |
+
+### 16.2 三条主链路验证结果
+
+| 链路 | 验证方式 | 结果 |
+| :--- | :--- | :--- |
+| LOCAL（3.1） | `--mode local` + 脚本化模型 | 3 轮 `done`、2 次工具调用、事件流齐全 |
+| HYBRID（3.2） | `--mode hybrid` + 模拟云端 | 2 个 TOOL_CALL 下发 → 端侧同风控执行 → TOOL_RESULT 回传 → FINISHED，0 死信 |
+| CLOUD（3.3） | `--mode cloud` | 本地内核零启动（无 turn_start / tool_result），仅流式分片与状态 |
+
+内置自检 **31/31**、端到端冒烟 **18/18**（`runtime/tools/smoke.py`）全绿，连续运行结果一致。
+
+### 16.3 落地取舍与待移植项
+
+- 方案中的 `Flow` / `suspend` 接口在骨架里用回调 + `BlockingQueue` 等价实现，保持零协程依赖；Android 端可直接换 Kotlin Flow。
+- `SimulatedCloudTransport` 为脚本化模拟云端，用于闭环验证；真实 WebSocket / gRPC 传输与云端 Agent 服务联调属 V1.3。
+- `Sandbox` 为宿主进程级隔离（proot / bwrap 可替换）；`ModelProvider` 仍为非流式，`onText` 已留。
+- `browser_use.click/input`、日历 / 通知的真平台权限、`ApprovalGate` 会话级授权持久化，均属 Android 平台 Handler 移植项。
+- 移植时替换 7 个实现（Sandbox / ApprovalGate / SessionStore / EventSink / ModelProvider / MemoryStore / SystemCapability），`AgentLoop` 与 10 个工具本身不改动。
+
+---
+
+## 17 需求反向追溯与口径统一（V1.2-PRD 增补）
+
+> 本章为「方案 → 需求」的反向补齐记录。方案设计先于产品需求定稿，容易出现两类问题：一是与既有 `REQUIREMENTS-SRS.docx` 的口径不一致，二是设计回答了「怎么做」却没回答「为什么做、给谁做、怎么验收」。本章与新增的 [`PRD.md`](PRD.md) 共同解决这两类问题。**口径裁决以 `PRD.md` 1.6 为单一事实源**，本章为方案侧的同步落地。
+
+### 17.1 文档体系与定位
+
+| 文档 | 视角 | 回答的问题 | 状态 |
+| :--- | :--- | :--- | :--- |
+| `REQUIREMENTS-SRS.docx` | 工程规格（IEEE 830 风格） | 系统有哪些功能条目、接口与数据；大量描述 nanoMuse 源码现状 | V1.0 评审稿，保留为工程基线 |
+| **`PRD.md`** | **产品需求** | **为什么做、给谁做、做到什么程度、怎么验收、先做哪个** | **V1.0 待评审** |
+| `DESIGN.md`（本文） | 方案设计 | 怎么实现：五层架构、时序、接口契约、状态机、验收标准 | V1.2-PRD |
+| `runtime/COVERAGE.md` | 落地对齐 | 设计里哪条已写成代码、哪条还是缺口 | V1.2 |
+
+`PRD.md` 采用**反向设计**：把本文已定稿的架构、工具清单、接口契约、状态机视为已确认输入，逐条反推用户问题、角色场景、成功标准与验收条件，并把「需求 ↔ 设计 ↔ 代码 ↔ 验收」四端锁死（见 `PRD.md` 附录 E RTM 与附录 F 反向设计映射表）。反向设计**不等于**把实现细节复述成需求：凡属上游源码事实（727 个 Kotlin 文件、13 个 A2A 动作、20 个 App 能力命令）一律不纳入本产品验收范围（`PRD.md` 2.5）。
+
+### 17.2 口径统一裁决表
+
+> 完整裁决理由见 `PRD.md` 1.6；本表列出方案侧需要同步的落点。
+
+| # | 冲突项 | SRS 口径 | 原 DESIGN / Runtime 口径 | 裁决结论 | 本文同步落点 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| C-01 | Android 最低版本 | Android 11（API 30）+，AArch64 优先 | Android 10+ | **Android 11（API 30）及以上，AArch64 优先** | 已修订 1.2 |
+| C-02 | 架构层数 | 端侧四层 + 端云两层 | 五层 | **统一为五层**（L1 Router / L2 Bus / L3 Session / L4 Looper / L5 Tool） | 第 2 章不变，SRS 四层仅作内核内部视角 |
+| C-03 | 条目统计 | 封面 37/14/7；正文 45/17/8 | — | **以正文 45 / 17 / 8 为准** | 已修正 `tools/build_html.py` 的 SRS subtitle |
+| C-04 | 工具数量 | 内置 8 个 | 10 个 P0 | **10 个 P0 端侧独占工具** | 第 1.3 / 7 章不变 |
+| C-05 | 互操作动作规模 | A2A 13 个固定动作、App 能力 20 命令 | MCP 协议层 + A2A 信封转换 + App Function schema | **不纳入本期交付范围** | 第 16.1 已按协议层陈述 |
+| C-06 | 并发上限 | 默认 2 个会话并行（P1 补强） | 全局 Semaphore 可配置 | **并发上限可配置；默认值属部署策略，不作产品硬指标** | 第 12 章「高扩展」不变 |
+| C-07 | 隔离强度 | proot + Alpine + 持久 shell | `Sandbox` 可替换，V1.2 宿主进程级 | **以接口契约为准，实现分级陈述** | 第 16.3 已区分 |
+| C-08 | 模型流式 | SSE 客户端 | 非流式，`onText` 已留 | **接口支持流式；当前实现为非流式** | 第 16.3 已区分 |
+| C-09 | 可替换接口数量 | 宿主五接口（SRS 3.6.4） | `COVERAGE.md` 八列 7 个平台实现；`runtime/README.md` 六列 8 类 | **7 个 Android 平台实现 + 1 个端云 `Transport` = 8 类可替换抽象**；两种表述按维度各自成立 | 第 16.3 与 `COVERAGE.md` 八均保留，不再视为冲突 |
+
+### 17.3 需求反向追溯摘要
+
+> 完整 20 项映射见 `PRD.md` 附录 F；本表给出方案章节与产品需求的对应关系。
+
+| 本文设计章节 | 反向追问：解决谁的什么问题 | 承接需求（`PRD.md`） | 代码落点 | 验收 |
+| :--- | :--- | :--- | :--- | :--- |
+| 2.1 五层架构 | 职责分离，换宿主不动内核 | FR-01、FR-12、NFR-18 | `Runtime.kt` | SC-04 / AC-08 |
+| 1.5 决策前置 | 避免旁路导致风控与 trace 缺失 | FR-01、PM-01 | `router/RootRouter.kt` | AC-09 |
+| 1.3 独占工具禁 CLOUD | 端侧私有数据与系统能力不能上云 | FR-03、FR-05 | `router/RootRouter.kt` | SC-08 / AC-09 |
+| 3 三条主链路 | 覆盖断网隐私 / 纯知识问答 / 大模型规划+本地执行 | FR-02、4.3 | `Runtime.kt` | AC-01 / AC-10 / AC-12 |
+| 6.2 信封协议 | 弱网下消息不丢、不重、可审计 | FR-07~10 | `bus/CloudAgentBus.kt` | 自检 `bus_*` |
+| 5 会话状态机 | 进程被杀后能接着跑，不重复已完成动作 | FR-14、FR-15、FR-19 | `session/SessionManager.kt` | AC-05 |
+| 6.4 200 轮上限 | 防止无限循环烧钱，受控收尾不丢结果 | FR-20~22 | `core/AgentLoop.kt` | AC-04 |
+| 6.3 工具统一入口 | 本地与云端调用同一套校验与风控 | FR-27~30 | `tools/ToolDispatchCenter.kt` | AC-10 |
+| 4 三道闸 | 危险动作执行前必须判定、分级、授权 | FR-38~43 | `guard/*.kt` | AC-02 / AC-03 |
+| 9 数据存储与链路 | 上层要实时进度且不能反向耦合内核 | FR-45~48 | `host/MultiSessionEventSink.kt` | AC-01 |
+| 12 非功能需求 | 端侧低延迟、断网可用、全可观测 | NFR-01~26 | 全局 | `PRD.md` 9.9 |
+
+### 17.4 本设计文档被补齐的产品层缺口
+
+以下内容原 `DESIGN.md` 未覆盖，由 `PRD.md` **增量补齐**（不改动本文已定稿的设计决策）：
+
+| 缺口 | 补齐位置 |
+| :--- | :--- |
+| 产品愿景、核心价值、成功指标与口径 | `PRD.md` 2.1~2.3、9.8 |
+| 用户角色定义、权限矩阵、云端 Agent 作为非特权主体 | `PRD.md` 3.1 / 3.2 |
+| 审批规则的产品化（风险六类三档、五结局、审批人、云端同风控） | `PRD.md` 3.3 |
+| 权限最小化与运行时能力降级 | `PRD.md` 3.4 |
+| 端侧交互面（任务提交表单、事件流订阅、审批卡片、会话列表、四态设计） | `PRD.md` 第 5 章 |
+| 运维与治理控制台（明确为设计态，不宣称已实现） | `PRD.md` 第 6 章 |
+| 数据模型的「逻辑模型 + 当前载体 + 目标态」三栏与存量迁移方案 | `PRD.md` 第 7 章 |
+| 非功能需求的口径裁决、隐私合规专项、AI 质量六模块 | `PRD.md` 9.3 / 9.7 |
+| 优先级（MoSCoW + RICE）、排期、风险登记册（概率 × 影响） | `PRD.md` 第 10 章 |
+| 需求追踪矩阵 RTM、用户故事、18 个 Given/When/Then 验收场景 | `PRD.md` 附录 E / G |
+| 依赖就绪度三档分级与最晚就绪时限 | `PRD.md` 4.5 |
+
+### 17.5 交付物清单增补（对第 15 章）
+
+| # | 增补交付物 | 位置 | 说明 |
+| :--- | :--- | :--- | :--- |
+| 10 | 产品需求文档（PRD） | `docs/PRD.md` / `docs/PRD.html` | 10 章模板适配 + 64 条 FR + 26 条 NFR + 18 个 AC + RTM |
+| 11 | 口径裁决与需求追溯 | `docs/DESIGN.md` 第 17 章、`PRD.md` 1.6 / 附录 E / F | 消除两份既有文档冲突 |
+| 12 | 网页生成扩展 | `tools/build_html.py` | 新增 PRD 网页版；修正 SRS subtitle 统计笔误 |
+
+### 17.6 一致性维护规则
+
+1. 口径冲突**必须**先查 `PRD.md` 1.6 裁决表，不得在两份文档各写一套；
+2. 新增设计决策后，**必须**在 `PRD.md` 补对应需求条目与验收场景，否则视为「缺少为什么」；
+3. 新增需求若改变本文已定稿的架构 / 工具 / 契约，**必须**走需求变更评估（影响范围 / 工期 / 成本 / 风险 / 干系人），未评估不更新范围与排期；
+4. 每次文档变更同步更新修订记录、`runtime/COVERAGE.md` 与 `README.md`，并重新生成全部 HTML；
+5. **禁止**把 `SimulatedCloudTransport` 的模拟闭环表述为「已与真实云端联调」，**禁止**把宿主进程级隔离表述为 OS 级隔离，禁止把设计态控制台表述为已交付。

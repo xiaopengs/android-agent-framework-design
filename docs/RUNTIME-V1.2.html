@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V1.2 Runtime 落地报告 · Android 端侧 Agent 框架</title>
+<style>
+:root{
+  --ink:#0E1A22; --paper:#F7F8F7; --rule:#C9D2D6; --blue:#12556F;
+  --amber:#B37A2A; --teal:#1F6B5E; --soft:#F0F2F1; --soft2:#F4F7F8;
+  --green:#1F6B5E; --red:#B3452F;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:15px;line-height:1.7}
+.topbar{border-bottom:1px solid var(--rule);background:#fff}
+.topbar-in{max-width:1180px;margin:0 auto;padding:14px 28px;display:flex;gap:18px;align-items:baseline;flex-wrap:wrap}
+.brand{font-weight:700;color:var(--blue);font-size:16px}
+.topbar a{color:var(--ink);text-decoration:none;font-size:13px}
+.topbar a:hover{color:var(--blue)}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 28px 64px}
+h1{font-size:26px;margin:10px 0 6px;color:var(--blue)}
+.sub{color:#5F7380;font-size:14px;margin:0 0 26px}
+h2{font-size:19px;margin:36px 0 14px;color:var(--blue);border-bottom:2px solid var(--blue);padding-bottom:8px}
+h3{font-size:15px;margin:20px 0 8px}
+.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+.metric{background:#fff;border:1px solid var(--rule);border-radius:10px;padding:16px 14px;text-align:center}
+.metric .n{font-size:27px;font-weight:700;color:var(--teal);line-height:1.2}
+.metric .l{font-size:12.5px;color:#5F7380;margin-top:6px}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:600}
+.b-new{background:#E3F1ED;color:var(--teal)}
+.b-part{background:#FBF0DC;color:var(--amber)}
+.b-old{background:#E8ECEE;color:#5F7380}
+.layers{display:grid;gap:10px;margin:18px 0}
+.layer{display:grid;grid-template-columns:110px 1fr 150px;gap:14px;align-items:center;
+  background:#fff;border:1px solid var(--rule);border-left:4px solid var(--blue);border-radius:8px;padding:12px 16px}
+.layer .lv{font-weight:700;color:var(--blue);font-size:13px}
+.layer .mods{font-size:13.5px}
+.layer .mods code{background:var(--soft);padding:1px 5px;border-radius:4px;font-size:12px}
+.layer .st{text-align:right;font-size:12.5px;color:var(--teal);font-weight:600}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;background:#fff}
+th,td{border:1px solid var(--rule);padding:9px 11px;text-align:left;vertical-align:top}
+th{background:#F2F2F2;font-weight:600}
+tr:nth-child(even) td{background:#FBFCFC}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.card{background:#fff;border:1px solid var(--rule);border-radius:10px;padding:16px}
+.card h3{margin:0 0 8px;color:var(--blue);font-size:15px}
+.card .res{color:var(--teal);font-weight:700;font-size:13px;margin-bottom:6px}
+.card p{margin:6px 0;font-size:13px;color:#33474F}
+pre{background:var(--soft);border:1px solid var(--rule);border-radius:8px;padding:14px;overflow-x:auto;font-size:12.5px;line-height:1.6}
+code{font-family:ui-monospace,Menlo,Consolas,monospace}
+ul{margin:8px 0;padding-left:20px}
+li{margin:5px 0}
+.note{background:var(--soft2);border-left:3px solid var(--amber);padding:10px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.5px}
+footer{color:#5F7380;font-size:12.5px;margin-top:40px;border-top:1px solid var(--rule);padding-top:16px}
+@media(max-width:900px){.metrics,.cards{grid-template-columns:repeat(2,1fr)}.layer{grid-template-columns:1fr}.layer .st{text-align:left}}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="topbar-in">
+  <span class="brand">Android 端侧 Agent 框架</span>
+  <a href="DESIGN.html">方案设计文档</a>
+  <a href="RUNTIME-V1.2.html">V1.2 落地报告</a>
+  <a href="https://github.com/xiaopengs/android-agent-framework-design">GitHub 仓库</a>
+</div></div>
+
+<div class="wrap">
+<h1>V1.2 Runtime 落地报告</h1>
+<p class="sub">按 <code>runtime/COVERAGE.md</code> 六阶段补齐路线，把 V1.1 的「Layer4+Layer5 垂直切片」推进为五层全实现的可运行骨架 · 2026-11-13</p>
+
+<div class="metrics">
+  <div class="metric"><div class="n">5 / 5</div><div class="l">架构层全部落地</div></div>
+  <div class="metric"><div class="n">10 / 10</div><div class="l">P0 工具全集</div></div>
+  <div class="metric"><div class="n">3 / 3</div><div class="l">主链路端到端闭环</div></div>
+  <div class="metric"><div class="n">31 / 31</div><div class="l">内置自检通过</div></div>
+  <div class="metric"><div class="n">18 / 18</div><div class="l">端到端冒烟通过</div></div>
+</div>
+
+<h2>一、五层架构：从垂直切片到全实现</h2>
+<div class="layers">
+  <div class="layer"><div class="lv">Layer 1<br>协同调度</div><div class="mods"><code>RootRouter</code> 三模式决策 · 独占工具识别禁 CLOUD · 离线降级 · traceId 生成 · 可配置规则</div><div class="st">V1.1 未实现 → 已实现</div></div>
+  <div class="layer"><div class="lv">Layer 2<br>通信总线</div><div class="mods"><code>CloudAgentBus</code> 信封编解码 · seq/幂等 · ACK · 重试退避 · 死信 · 流式分片 · 可插拔 Transport</div><div class="st">V1.1 未实现 → 已实现</div></div>
+  <div class="layer"><div class="lv">Layer 3<br>任务接入</div><div class="mods"><code>SessionManager</code> 六态状态机与断点续跑 · <code>TaskQueue</code> 会话内串行/间并行 · <code>ConcurrencyController</code> 上限与取消</div><div class="st">V1.1 部分 → 已实现</div></div>
+  <div class="layer"><div class="lv">Layer 4<br>Agent 内核</div><div class="mods"><code>AgentLoop</code> 200 轮/打转检测（保持不变）· <code>ContextManager</code> 压缩/截断/摘要回收 · 状态机落盘</div><div class="st">已实现 + 增强</div></div>
+  <div class="layer"><div class="lv">Layer 5<br>能力执行</div><div class="mods"><code>ToolDispatchCenter</code> 统一校验与审计 · ShellGuard / RiskGate / <code>OffloadGate</code> · Sandbox · MemoryStore · SystemCapability</div><div class="st">4 工具 → 10 工具</div></div>
+</div>
+
+<h2>二、10 个 P0 工具覆盖</h2>
+<table>
+<thead><tr><th style="width:22%">工具</th><th style="width:16%">V1.1</th><th style="width:16%">V1.2</th><th>实现要点</th></tr></thead>
+<tbody>
+<tr><td><code>shell_execute</code></td><td><span class="badge b-old">已实现</span></td><td><span class="badge b-new">已实现</span></td><td>四问静态闸 + 阻塞审批，超时按拒绝</td></tr>
+<tr><td><code>file_read</code> / <code>file_write</code> / <code>file_edit</code></td><td><span class="badge b-old">已实现</span></td><td><span class="badge b-new">已实现</span></td><td>工作目录隔离、原子写、唯一匹配替换</td></tr>
+<tr><td><code>read_image</code></td><td><span class="badge b-old">未实现</span></td><td><span class="badge b-new">已实现</span></td><td>ImageIO 解码、缩略图 Base64、大图与隐私路径限流</td></tr>
+<tr><td><code>browser_use</code></td><td><span class="badge b-old">未实现</span></td><td><span class="badge b-part">部分实现</span></td><td>navigate/extract + 域名黑名单/内网拦截 + 出网审批；click/input 需 Android WebView</td></tr>
+<tr><td><code>memory_write</code> / <code>memory_get</code></td><td><span class="badge b-old">未实现</span></td><td><span class="badge b-new">已实现</span></td><td>key/tags 检索、过期、单条与总容量配额</td></tr>
+<tr><td><code>android_calendar</code></td><td><span class="badge b-old">未实现</span></td><td><span class="badge b-new">已实现</span></td><td>query/add/update/delete，接 SystemCapability 抽象</td></tr>
+<tr><td><code>android_notify</code></td><td><span class="badge b-old">未实现</span></td><td><span class="badge b-new">已实现</span></td><td>频率限流 5 条/分钟，防刷屏</td></tr>
+</tbody>
+</table>
+
+<h2>三、三条主链路验证结果</h2>
+<div class="cards">
+  <div class="card"><h3>链路 1 · LOCAL</h3><div class="res">3 轮 done，2 次工具调用</div><p>写文件 → shell 读回 → 收尾；事件流 turn_start / turn / tool_start / tool_result / text / done 齐全，五层事件（router_decision / task_enqueue / session_state / tool_dispatch）全部可见。</p></div>
+  <div class="card"><h3>链路 2 · HYBRID</h3><div class="res">2 次 TOOL_CALL 闭环，0 死信</div><p>云端下发 → OffloadGate 越权校验 → 端侧同一条风控链路执行 → TOOL_RESULT 标准化回传 → STATUS FINISHED。bus_send / ack / inbound 齐全。</p></div>
+  <div class="card"><h3>链路 3 · CLOUD</h3><div class="res">本地内核零启动</div><p>无 turn_start、无 tool_result、不创建 Sandbox、不入 TaskQueue，仅流式 STREAM_CHUNK 与状态信封。</p></div>
+</div>
+<div class="note"><strong>安全专项</strong>：<code>rm -rf</code> 判 DESTRUCTIVE → 审批 DENY → 命令未执行、文件保留；断网自动降级 LOCAL；10 个独占工具 × 3 种请求组合均不输出 CLOUD。内置自检 31 项、端到端冒烟 18 项连续两次运行全绿。</div>
+
+<h2>四、新增代码与工具</h2>
+<table>
+<thead><tr><th style="width:30%">类别</th><th>文件</th></tr></thead>
+<tbody>
+<tr><td>五层装配 / 入口</td><td><code>Runtime.kt</code>（三链路）、<code>Main.kt</code>（CLI）、<code>SelfTest.kt</code>（31 项）</td></tr>
+<tr><td>Layer1 / Layer2</td><td><code>router/RootRouter.kt</code>、<code>bus/CloudAgentBus.kt</code></td></tr>
+<tr><td>Layer3 / Layer4</td><td><code>session/{SessionManager,TaskQueue}.kt</code>、<code>context/ContextManager.kt</code></td></tr>
+<tr><td>Layer5</td><td><code>tools/{PlatformTools,ToolDispatchCenter}.kt</code>、<code>guard/OffloadGate.kt</code>、<code>memory/MemoryStore.kt</code>、<code>capability/SystemCapability.kt</code></td></tr>
+<tr><td>互操作 / 宿主</td><td><code>interop/{McpAdapter,A2AAdapter}.kt</code>、<code>host/MultiSessionEventSink.kt</code></td></tr>
+<tr><td>构建与验证</td><td><code>tools/build.sh</code>（kotlinc 或 Gradle embeddable 自动回退）、<code>tools/smoke.py</code>、<code>tools/fake_model.py</code>（按会话轮次计数）</td></tr>
+<tr><td>文档</td><td><code>COVERAGE.md</code> / <code>README.md</code> 重写、<code>DESIGN.md</code> 新增第 16 章、两份 HTML 重新生成、<code>build_html.py</code> 修复硬编码路径</td></tr>
+</tbody>
+</table>
+
+<h2>五、运行方式</h2>
+<pre><code>cd runtime
+./tools/build.sh                 # 编译出自包含 jar
+java -cp out/nm-headless.jar:libs/json.jar \
+  nanomuse.headless.MainKt --self-test --root ./nm-run        # 31 项自检
+python3 tools/smoke.py           # 18 项端到端冒烟（自动起停假模型）
+
+# 三条主链路
+java -cp out/nm-headless.jar:libs/json.jar nanomuse.headless.MainKt \
+  --task "写一个 hello.txt 再读回来" --mode local --auto-approve --root ./nm-run
+java -cp out/nm-headless.jar:libs/json.jar nanomuse.headless.MainKt \
+  --task "端云协同跑一遍" --mode hybrid --root ./nm-run
+java -cp out/nm-headless.jar:libs/json.jar nanomuse.headless.MainKt \
+  --task "介绍一下端云协同" --mode cloud --root ./nm-run</code></pre>
+
+<h2>六、剩余缺口（V1.3 建议）</h2>
+<ul>
+<li><strong>真实传输层</strong>：<code>SimulatedCloudTransport</code> 换 WebSocket / gRPC，与真实云端 Agent 服务联调。</li>
+<li><strong>模型流式</strong>：Provider 接 SSE 增量解析并调 <code>onText</code>，循环层无需改动。</li>
+<li><strong>Android 平台 Handler</strong>：CalendarContract / NotificationManager / WebView（browser_use 的 click/input）、无障碍。</li>
+<li><strong>隔离与授权</strong>：Sandbox 换 proot / bwrap；ApprovalGate 的会话级 / 永久授权态持久化与 UI 卡片。</li>
+<li><strong>存储与事件</strong>：SessionStore → SQLite、EventSink → SSE/Hub、MemoryStore → 向量检索。</li>
+<li><strong>工程化</strong>：上下文摘要模型化、多会话并发压测、长稳保活、MCP/A2A 真实传输 Server。</li>
+</ul>
+
+<footer>逐项对齐矩阵与验收对照见 <code>runtime/COVERAGE.md</code>；方案基线见 <code>docs/DESIGN.md</code> 第 16 章。所有验证均可在本机复现，不依赖真实模型密钥。</footer>
+</div>
+</body>
+</html>

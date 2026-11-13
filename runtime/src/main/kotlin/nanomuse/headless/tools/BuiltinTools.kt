@@ -44,7 +44,8 @@ class ShellTool(private val defaultTimeoutMs: Long = 900_000) : Tool {
             )
             ctx.events.emit(
                 "approval",
-                JSONObject().put("risk", verdict.risk.name).put("outcome", outcome.name),
+                JSONObject().put("risk", verdict.risk.name).put("outcome", outcome.name)
+                    .put("session", ctx.sessionId).put("trace_id", ctx.traceId),
             )
             if (outcome == ApprovalOutcome.DENY || outcome == ApprovalOutcome.TIMEOUT) {
                 return ToolResult("Error: the user did not allow this command (${verdict.reason}).", true)

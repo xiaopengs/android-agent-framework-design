@@ -2,7 +2,7 @@
 <html lang="zh-CN"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>方案设计文档 · V1.1 Final-Dev</title>
+<title>方案设计文档 · V1.2 Runtime</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2312556F'/%3E%3Ctext x='16' y='22' font-size='17' font-family='sans-serif' fill='white' text-anchor='middle' font-weight='700'%3EA%3C/text%3E%3C/svg%3E">
 <style>
 :root{
@@ -57,15 +57,16 @@ img{max-width:100%;height:auto;border:1px solid var(--rule);border-radius:8px}
 </head><body>
 <div class="topbar"><div class="topbar-in">
   <span class="brand">Android 端侧 Agent 框架</span>
+  <a href="PRD.html">产品需求文档 (PRD)</a>
   <a href="DESIGN.html">方案设计文档</a>
   <a href="REQUIREMENTS-SRS.html">需求规格说明书</a>
   <a href="https://github.com/xiaopengs/android-agent-framework-design">GitHub 仓库</a>
 </div></div>
 <div class="wrap">
-<aside><nav><p class="nav-title">目录</p><ul><li><a class=" lvl2" href="#h-1">修订记录</a></li><li><a class=" lvl2" href="#h-2">1 文档概述</a></li><li><a class=" lvl2" href="#h-3">1.1 文档目的</a></li><li><a class=" lvl2" href="#h-4">1.2 适用范围</a></li><li><a class=" lvl2" href="#h-5">1.3 P0 核心工具清单（端侧独占，Router 禁止纯 CLOUD 调度）</a></li><li><a class=" lvl2" href="#h-6">1.4 术语定义</a></li><li><a class=" lvl2" href="#h-7">1.5 设计总原则</a></li><li><a class=" lvl2" href="#h-8">2 整体架构设计（五层架构 + Mermaid 架构图）</a></li><li><a class=" lvl2" href="#h-9">2.1 五层分层职责</a></li><li><a class=" lvl2" href="#h-10">2.2 架构框图（Mermaid）</a></li><li><a class=" lvl2" href="#h-11">3 核心顺序图（3 条主链路）</a></li><li><a class=" lvl2" href="#h-12">3.1 链路 1：LOCAL 本地离线模式（无云端交互）</a></li><li><a class=" lvl2" href="#h-13">3.2 链路 2：HYBRID 端云协同模式（核心链路，云端规划，端侧执行工具）</a></li><li><a class=" lvl2" href="#h-14">3.3 链路 3：CLOUD 云端全权模式（无本地独占工具）</a></li><li><a class=" lvl2" href="#h-15">4 工具内部子时序（通用范式，shell_execute 示例，所有工具复用该流程）</a></li><li><a class=" lvl2" href="#h-16">5 会话状态机（SessionState，状态持久化，支持断点续跑）</a></li><li><a class=" lvl2" href="#h-17">6 模块间接口契约（开发直接对齐入参、回调、异常）</a></li><li><a class=" lvl2" href="#h-18">6.1 RootRouter 对外接口（全局唯一入口）</a></li><li><a class=" lvl2" href="#h-19">6.2 CloudAgentBus 接口</a></li><li><a class=" lvl2" href="#h-20">6.3 ToolDispatchCenter 工具统一入口</a></li><li><a class=" lvl2" href="#h-21">6.4 AgentLooper 会话循环接口</a></li><li><a class=" lvl2" href="#h-22">7 10 个核心工具详细协议、能力、风控规范（最终定稿）</a></li><li><a class=" lvl2" href="#h-23">通用统一入参出参格式</a></li><li><a class=" lvl2" href="#h-24">7.1 shell_execute 沙箱命令执行</a></li><li><a class=" lvl2" href="#h-25">7.2 file_read 文件读取</a></li><li><a class=" lvl2" href="#h-26">7.3 file_write 文件写入</a></li><li><a class=" lvl2" href="#h-27">7.4 file_edit 文件增量编辑</a></li><li><a class=" lvl2" href="#h-28">7.5 read_image 图片读取解析</a></li><li><a class=" lvl2" href="#h-29">7.6 browser_use 浏览器自动化</a></li><li><a class=" lvl2" href="#h-30">7.7 memory_write 长期记忆写入</a></li><li><a class=" lvl2" href="#h-31">7.8 memory_get 长期记忆读取</a></li><li><a class=" lvl2" href="#h-32">7.9 android_calendar 系统日历（保留）</a></li><li><a class=" lvl2" href="#h-33">7.10 android_notify 系统通知（保留）</a></li><li><a class=" lvl2" href="#h-34">8 端云协同全链路时序（文字描述）</a></li><li><a class=" lvl2" href="#h-35">8.1 HYBRID 标准闭环时序（核心）</a></li><li><a class=" lvl2" href="#h-36">8.2 LOCAL / CLOUD 时序</a></li><li><a class=" lvl2" href="#h-37">9 数据存储与链路设计</a></li><li><a class=" lvl2" href="#h-38">9.1 持久化数据</a></li><li><a class=" lvl2" href="#h-39">9.2 完整数据流</a></li><li><a class=" lvl2" href="#h-40">10 模块依赖总图（文本）</a></li><li><a class=" lvl2" href="#h-41">11 可移植组件清单（完整可剥离 SDK）</a></li><li><a class=" lvl2" href="#h-42">11.1 100% 可移植无 UI 核心模块</a></li><li><a class=" lvl2" href="#h-43">11.2 需剔除模块</a></li><li><a class=" lvl2" href="#h-44">12 非功能需求</a></li><li><a class=" lvl2" href="#h-45">13 风险与解决方案</a></li><li><a class=" lvl2" href="#h-46">14 全量验收标准（最终定稿，含 10 工具专项）</a></li><li><a class=" lvl2" href="#h-47">14.1 框架基础验收</a></li><li><a class=" lvl2" href="#h-48">14.2 路由规则专项验收</a></li><li><a class=" lvl2" href="#h-49">14.3 10 个核心工具全覆盖验收（P0 必过）</a></li><li><a class=" lvl2" href="#h-50">14.4 协同链路验收</a></li><li><a class=" lvl2" href="#h-51">15 开发交付物清单</a></li></ul></nav></aside>
+<aside><nav><p class="nav-title">目录</p><ul><li><a class=" lvl2" href="#h-1">修订记录</a></li><li><a class=" lvl2" href="#h-2">1 文档概述</a></li><li><a class=" lvl2" href="#h-3">1.1 文档目的</a></li><li><a class=" lvl2" href="#h-4">1.2 适用范围</a></li><li><a class=" lvl2" href="#h-5">1.3 P0 核心工具清单（端侧独占，Router 禁止纯 CLOUD 调度）</a></li><li><a class=" lvl2" href="#h-6">1.4 术语定义</a></li><li><a class=" lvl2" href="#h-7">1.5 设计总原则</a></li><li><a class=" lvl2" href="#h-8">2 整体架构设计（五层架构 + Mermaid 架构图）</a></li><li><a class=" lvl2" href="#h-9">2.1 五层分层职责</a></li><li><a class=" lvl2" href="#h-10">2.2 架构框图（Mermaid）</a></li><li><a class=" lvl2" href="#h-11">3 核心顺序图（3 条主链路）</a></li><li><a class=" lvl2" href="#h-12">3.1 链路 1：LOCAL 本地离线模式（无云端交互）</a></li><li><a class=" lvl2" href="#h-13">3.2 链路 2：HYBRID 端云协同模式（核心链路，云端规划，端侧执行工具）</a></li><li><a class=" lvl2" href="#h-14">3.3 链路 3：CLOUD 云端全权模式（无本地独占工具）</a></li><li><a class=" lvl2" href="#h-15">4 工具内部子时序（通用范式，shell_execute 示例，所有工具复用该流程）</a></li><li><a class=" lvl2" href="#h-16">5 会话状态机（SessionState，状态持久化，支持断点续跑）</a></li><li><a class=" lvl2" href="#h-17">6 模块间接口契约（开发直接对齐入参、回调、异常）</a></li><li><a class=" lvl2" href="#h-18">6.1 RootRouter 对外接口（全局唯一入口）</a></li><li><a class=" lvl2" href="#h-19">6.2 CloudAgentBus 接口</a></li><li><a class=" lvl2" href="#h-20">6.3 ToolDispatchCenter 工具统一入口</a></li><li><a class=" lvl2" href="#h-21">6.4 AgentLooper 会话循环接口</a></li><li><a class=" lvl2" href="#h-22">7 10 个核心工具详细协议、能力、风控规范（最终定稿）</a></li><li><a class=" lvl2" href="#h-23">通用统一入参出参格式</a></li><li><a class=" lvl2" href="#h-24">7.1 shell_execute 沙箱命令执行</a></li><li><a class=" lvl2" href="#h-25">7.2 file_read 文件读取</a></li><li><a class=" lvl2" href="#h-26">7.3 file_write 文件写入</a></li><li><a class=" lvl2" href="#h-27">7.4 file_edit 文件增量编辑</a></li><li><a class=" lvl2" href="#h-28">7.5 read_image 图片读取解析</a></li><li><a class=" lvl2" href="#h-29">7.6 browser_use 浏览器自动化</a></li><li><a class=" lvl2" href="#h-30">7.7 memory_write 长期记忆写入</a></li><li><a class=" lvl2" href="#h-31">7.8 memory_get 长期记忆读取</a></li><li><a class=" lvl2" href="#h-32">7.9 android_calendar 系统日历（保留）</a></li><li><a class=" lvl2" href="#h-33">7.10 android_notify 系统通知（保留）</a></li><li><a class=" lvl2" href="#h-34">8 端云协同全链路时序（文字描述）</a></li><li><a class=" lvl2" href="#h-35">8.1 HYBRID 标准闭环时序（核心）</a></li><li><a class=" lvl2" href="#h-36">8.2 LOCAL / CLOUD 时序</a></li><li><a class=" lvl2" href="#h-37">9 数据存储与链路设计</a></li><li><a class=" lvl2" href="#h-38">9.1 持久化数据</a></li><li><a class=" lvl2" href="#h-39">9.2 完整数据流</a></li><li><a class=" lvl2" href="#h-40">10 模块依赖总图（文本）</a></li><li><a class=" lvl2" href="#h-41">11 可移植组件清单（完整可剥离 SDK）</a></li><li><a class=" lvl2" href="#h-42">11.1 100% 可移植无 UI 核心模块</a></li><li><a class=" lvl2" href="#h-43">11.2 需剔除模块</a></li><li><a class=" lvl2" href="#h-44">12 非功能需求</a></li><li><a class=" lvl2" href="#h-45">13 风险与解决方案</a></li><li><a class=" lvl2" href="#h-46">14 全量验收标准（最终定稿，含 10 工具专项）</a></li><li><a class=" lvl2" href="#h-47">14.1 框架基础验收</a></li><li><a class=" lvl2" href="#h-48">14.2 路由规则专项验收</a></li><li><a class=" lvl2" href="#h-49">14.3 10 个核心工具全覆盖验收（P0 必过）</a></li><li><a class=" lvl2" href="#h-50">14.4 协同链路验收</a></li><li><a class=" lvl2" href="#h-51">15 开发交付物清单</a></li><li><a class=" lvl2" href="#h-52">16 Runtime 落地状态（V1.2）</a></li><li><a class=" lvl2" href="#h-53">16.1 已落地交付物</a></li><li><a class=" lvl2" href="#h-54">16.2 三条主链路验证结果</a></li><li><a class=" lvl2" href="#h-55">16.3 落地取舍与待移植项</a></li><li><a class=" lvl2" href="#h-56">17 需求反向追溯与口径统一（V1.2-PRD 增补）</a></li><li><a class=" lvl2" href="#h-57">17.1 文档体系与定位</a></li><li><a class=" lvl2" href="#h-58">17.2 口径统一裁决表</a></li><li><a class=" lvl2" href="#h-59">17.3 需求反向追溯摘要</a></li><li><a class=" lvl2" href="#h-60">17.4 本设计文档被补齐的产品层缺口</a></li><li><a class=" lvl2" href="#h-61">17.5 交付物清单增补（对第 15 章）</a></li><li><a class=" lvl2" href="#h-62">17.6 一致性维护规则</a></li></ul></nav></aside>
 <main><article>
-<h1>方案设计文档 · V1.1 Final-Dev</h1>
-<p class="meta">五层架构 · 三模式调度 · 10 个核心工具 · 接口契约与验收</p>
+<h1>方案设计文档 · V1.2 Runtime</h1>
+<p class="meta">五层架构 · 三模式调度 · 10 个核心工具 · 接口契约与验收 · Runtime 落地状态</p>
 
 <blockquote>
 <p>文档说明：本版为开发基线文档，包含五层架构、Mermaid 架构图、3 条核心业务顺序图、工具子时序图、会话状态机、模块接口契约；完整保留工具定义、风控、验收、非功能需求。所有 Mermaid 代码可直接复制到 Typora / Obsidian / Mermaid LiveEditor 渲染图形。</p>
@@ -100,6 +101,16 @@ img{max-width:100%;height:auto;border:1px solid var(--rule);border-radius:8px}
 <td style="text-align: left;">2026-11-13</td>
 <td style="text-align: left;">开发落地增强版：增加架构图、3 套核心顺序图、模块接口契约、状态机、调用边界</td>
 </tr>
+<tr>
+<td style="text-align: left;">V1.2-Runtime</td>
+<td style="text-align: left;">2026-11-13</td>
+<td style="text-align: left;">代码落地：五层架构全部实现、10 个 P0 工具全集、三条主链路端到端闭环、MCP/A2A 适配、31 项自检与 18 项冒烟（详见第 16 章与 <code>runtime/COVERAGE.md</code>）</td>
+</tr>
+<tr>
+<td style="text-align: left;">V1.2-PRD</td>
+<td style="text-align: left;">2026-11-13</td>
+<td style="text-align: left;">需求反向补齐：新增 <a href="PRD.md"><code>PRD.md</code></a> 产品需求文档（按 10 章模板反向设计）；统一与 SRS 的 9 处口径冲突；补充需求追踪矩阵与设计缺口说明（见第 17 章）</td>
+</tr>
 </tbody>
 </table>
 <h2 id="h-2">1 文档概述</h2>
@@ -107,7 +118,7 @@ img{max-width:100%;height:auto;border:1px solid var(--rule);border-radius:8px}
 <p>本文为 nanoMuse Android Headless Agent 端侧 Agent 框架<strong>开发指导基线文档</strong>。除能力、协议、工具定义外，补充：<strong>组件依赖关系、消息时序、同步/异步边界、异常分支、模块间接口契约、状态流转</strong>，SDK 开发、测试、云端联调同学可直接基于本文档编码、编写单元测试、编写联调用例。</p>
 <h3 id="h-4">1.2 适用范围</h3>
 <ul>
-<li>运行环境：Android 10+，纯后台 Service，无 UI 依赖</li>
+<li>运行环境：Android 11（API 30）及以上，AArch64 优先；纯后台 Service，无 UI 依赖（与 <code>REQUIREMENTS-SRS.docx</code> 统一，见第 17 章裁决 C-01）</li>
 <li>任务来源：用户 Query、三方 Agent 调用、定时任务、A2A 跨设备任务、云端协同子任务</li>
 <li>调度模式：LOCAL / CLOUD / HYBRID</li>
 <li>交付形态：可独立剥离的端侧 Agent Runtime SDK</li>
@@ -697,6 +708,425 @@ ToolDispatchCenter 10 工具统一中台
 <li>MCP Server 适配层，对外暴露工具 schema</li>
 <li>A2A 跨设备通信适配层</li>
 <li>审计日志、trace 埋点、可观测模块</li>
+</ol>
+<h2 id="h-52">16 Runtime 落地状态（V1.2）</h2>
+<blockquote>
+<p>本章记录方案基线在 <code>runtime/</code> 代码骨架中的落地情况，逐项对齐矩阵与验证记录见 <a href="../runtime/COVERAGE.md">runtime/COVERAGE.md</a>。</p>
+</blockquote>
+<h3 id="h-53">16.1 已落地交付物</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">交付物（第 15 章）</th>
+<th style="text-align: left;">代码位置</th>
+<th style="text-align: left;">状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">1 RootRouter + 单元测试</td>
+<td style="text-align: left;"><code>router/RootRouter.kt</code></td>
+<td style="text-align: left;">已实现，决策表 / 独占工具禁 CLOUD / 离线降级均有自检</td>
+</tr>
+<tr>
+<td style="text-align: left;">2 CloudAgentBus</td>
+<td style="text-align: left;"><code>bus/CloudAgentBus.kt</code></td>
+<td style="text-align: left;">已实现，信封 + ACK + 重试 + 死信 + 流式 + 幂等</td>
+</tr>
+<tr>
+<td style="text-align: left;">3 SessionManager + TaskQueue</td>
+<td style="text-align: left;"><code>session/*.kt</code></td>
+<td style="text-align: left;">已实现，状态机持久化、断点续跑、会话内串行 / 会话间并行、并发上限</td>
+</tr>
+<tr>
+<td style="text-align: left;">4 AgentLooper + ContextManager</td>
+<td style="text-align: left;"><code>core/AgentLoop.kt</code>、<code>context/ContextManager.kt</code></td>
+<td style="text-align: left;">已实现，轮次上限 + 历史压缩 / 截断 / 摘要回收</td>
+</tr>
+<tr>
+<td style="text-align: left;">5 ToolDispatchCenter + 三层风控</td>
+<td style="text-align: left;"><code>tools/ToolDispatchCenter.kt</code>、<code>guard/*.kt</code></td>
+<td style="text-align: left;">已实现，统一校验 + 审计；RiskGate 授权态持久化待补</td>
+</tr>
+<tr>
+<td style="text-align: left;">6 10 个工具 + 参数校验 + 单元测试</td>
+<td style="text-align: left;"><code>tools/BuiltinTools.kt</code>、<code>tools/PlatformTools.kt</code></td>
+<td style="text-align: left;">全部实现，逐工具有自检用例</td>
+</tr>
+<tr>
+<td style="text-align: left;">7 MCP 适配层</td>
+<td style="text-align: left;"><code>interop/McpAdapter.kt</code></td>
+<td style="text-align: left;">JSON-RPC 协议层已通（tools/list、tools/call），传输 Server 待接</td>
+</tr>
+<tr>
+<td style="text-align: left;">8 A2A 适配层</td>
+<td style="text-align: left;"><code>interop/A2AAdapter.kt</code></td>
+<td style="text-align: left;">任务 ↔ 信封转换已通，真实跨设备传输待接</td>
+</tr>
+<tr>
+<td style="text-align: left;">9 审计 / trace / 可观测</td>
+<td style="text-align: left;"><code>host/MultiSessionEventSink.kt</code></td>
+<td style="text-align: left;">已实现，全链路 traceId 贯穿、按会话 NDJSON 分流</td>
+</tr>
+</tbody>
+</table>
+<h3 id="h-54">16.2 三条主链路验证结果</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">链路</th>
+<th style="text-align: left;">验证方式</th>
+<th style="text-align: left;">结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">LOCAL（3.1）</td>
+<td style="text-align: left;"><code>--mode local</code> + 脚本化模型</td>
+<td style="text-align: left;">3 轮 <code>done</code>、2 次工具调用、事件流齐全</td>
+</tr>
+<tr>
+<td style="text-align: left;">HYBRID（3.2）</td>
+<td style="text-align: left;"><code>--mode hybrid</code> + 模拟云端</td>
+<td style="text-align: left;">2 个 TOOL_CALL 下发 → 端侧同风控执行 → TOOL_RESULT 回传 → FINISHED，0 死信</td>
+</tr>
+<tr>
+<td style="text-align: left;">CLOUD（3.3）</td>
+<td style="text-align: left;"><code>--mode cloud</code></td>
+<td style="text-align: left;">本地内核零启动（无 turn_start / tool_result），仅流式分片与状态</td>
+</tr>
+</tbody>
+</table>
+<p>内置自检 <strong>31/31</strong>、端到端冒烟 <strong>18/18</strong>（<code>runtime/tools/smoke.py</code>）全绿，连续运行结果一致。</p>
+<h3 id="h-55">16.3 落地取舍与待移植项</h3>
+<ul>
+<li>方案中的 <code>Flow</code> / <code>suspend</code> 接口在骨架里用回调 + <code>BlockingQueue</code> 等价实现，保持零协程依赖；Android 端可直接换 Kotlin Flow。</li>
+<li><code>SimulatedCloudTransport</code> 为脚本化模拟云端，用于闭环验证；真实 WebSocket / gRPC 传输与云端 Agent 服务联调属 V1.3。</li>
+<li><code>Sandbox</code> 为宿主进程级隔离（proot / bwrap 可替换）；<code>ModelProvider</code> 仍为非流式，<code>onText</code> 已留。</li>
+<li><code>browser_use.click/input</code>、日历 / 通知的真平台权限、<code>ApprovalGate</code> 会话级授权持久化，均属 Android 平台 Handler 移植项。</li>
+<li>移植时替换 7 个实现（Sandbox / ApprovalGate / SessionStore / EventSink / ModelProvider / MemoryStore / SystemCapability），<code>AgentLoop</code> 与 10 个工具本身不改动。</li>
+</ul>
+<hr />
+<h2 id="h-56">17 需求反向追溯与口径统一（V1.2-PRD 增补）</h2>
+<blockquote>
+<p>本章为「方案 → 需求」的反向补齐记录。方案设计先于产品需求定稿，容易出现两类问题：一是与既有 <code>REQUIREMENTS-SRS.docx</code> 的口径不一致，二是设计回答了「怎么做」却没回答「为什么做、给谁做、怎么验收」。本章与新增的 <a href="PRD.md"><code>PRD.md</code></a> 共同解决这两类问题。<strong>口径裁决以 <code>PRD.md</code> 1.6 为单一事实源</strong>，本章为方案侧的同步落地。</p>
+</blockquote>
+<h3 id="h-57">17.1 文档体系与定位</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">文档</th>
+<th style="text-align: left;">视角</th>
+<th style="text-align: left;">回答的问题</th>
+<th style="text-align: left;">状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>REQUIREMENTS-SRS.docx</code></td>
+<td style="text-align: left;">工程规格（IEEE 830 风格）</td>
+<td style="text-align: left;">系统有哪些功能条目、接口与数据；大量描述 nanoMuse 源码现状</td>
+<td style="text-align: left;">V1.0 评审稿，保留为工程基线</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>PRD.md</code></strong></td>
+<td style="text-align: left;"><strong>产品需求</strong></td>
+<td style="text-align: left;"><strong>为什么做、给谁做、做到什么程度、怎么验收、先做哪个</strong></td>
+<td style="text-align: left;"><strong>V1.0 待评审</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>DESIGN.md</code>（本文）</td>
+<td style="text-align: left;">方案设计</td>
+<td style="text-align: left;">怎么实现：五层架构、时序、接口契约、状态机、验收标准</td>
+<td style="text-align: left;">V1.2-PRD</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>runtime/COVERAGE.md</code></td>
+<td style="text-align: left;">落地对齐</td>
+<td style="text-align: left;">设计里哪条已写成代码、哪条还是缺口</td>
+<td style="text-align: left;">V1.2</td>
+</tr>
+</tbody>
+</table>
+<p><code>PRD.md</code> 采用<strong>反向设计</strong>：把本文已定稿的架构、工具清单、接口契约、状态机视为已确认输入，逐条反推用户问题、角色场景、成功标准与验收条件，并把「需求 ↔ 设计 ↔ 代码 ↔ 验收」四端锁死（见 <code>PRD.md</code> 附录 E RTM 与附录 F 反向设计映射表）。反向设计<strong>不等于</strong>把实现细节复述成需求：凡属上游源码事实（727 个 Kotlin 文件、13 个 A2A 动作、20 个 App 能力命令）一律不纳入本产品验收范围（<code>PRD.md</code> 2.5）。</p>
+<h3 id="h-58">17.2 口径统一裁决表</h3>
+<blockquote>
+<p>完整裁决理由见 <code>PRD.md</code> 1.6；本表列出方案侧需要同步的落点。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">冲突项</th>
+<th style="text-align: left;">SRS 口径</th>
+<th style="text-align: left;">原 DESIGN / Runtime 口径</th>
+<th style="text-align: left;">裁决结论</th>
+<th style="text-align: left;">本文同步落点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">C-01</td>
+<td style="text-align: left;">Android 最低版本</td>
+<td style="text-align: left;">Android 11（API 30）+，AArch64 优先</td>
+<td style="text-align: left;">Android 10+</td>
+<td style="text-align: left;"><strong>Android 11（API 30）及以上，AArch64 优先</strong></td>
+<td style="text-align: left;">已修订 1.2</td>
+</tr>
+<tr>
+<td style="text-align: left;">C-02</td>
+<td style="text-align: left;">架构层数</td>
+<td style="text-align: left;">端侧四层 + 端云两层</td>
+<td style="text-align: left;">五层</td>
+<td style="text-align: left;"><strong>统一为五层</strong>（L1 Router / L2 Bus / L3 Session / L4 Looper / L5 Tool）</td>
+<td style="text-align: left;">第 2 章不变，SRS 四层仅作内核内部视角</td>
+</tr>
+<tr>
+<td style="text-align: left;">C-03</td>
+<td style="text-align: left;">条目统计</td>
+<td style="text-align: left;">封面 37/14/7；正文 45/17/8</td>
+<td style="text-align: left;">—</td>
+<td style="text-align: left;"><strong>以正文 45 / 17 / 8 为准</strong></td>
+<td style="text-align: left;">已修正 <code>tools/build_html.py</code> 的 SRS subtitle</td>
+</tr>
+<tr>
+<td style="text-align: left;">C-04</td>
+<td style="text-align: left;">工具数量</td>
+<td style="text-align: left;">内置 8 个</td>
+<td style="text-align: left;">10 个 P0</td>
+<td style="text-align: left;"><strong>10 个 P0 端侧独占工具</strong></td>
+<td style="text-align: left;">第 1.3 / 7 章不变</td>
+</tr>
+<tr>
+<td style="text-align: left;">C-05</td>
+<td style="text-align: left;">互操作动作规模</td>
+<td style="text-align: left;">A2A 13 个固定动作、App 能力 20 命令</td>
+<td style="text-align: left;">MCP 协议层 + A2A 信封转换 + App Function schema</td>
+<td style="text-align: left;"><strong>不纳入本期交付范围</strong></td>
+<td style="text-align: left;">第 16.1 已按协议层陈述</td>
+</tr>
+<tr>
+<td style="text-align: left;">C-06</td>
+<td style="text-align: left;">并发上限</td>
+<td style="text-align: left;">默认 2 个会话并行（P1 补强）</td>
+<td style="text-align: left;">全局 Semaphore 可配置</td>
+<td style="text-align: left;"><strong>并发上限可配置；默认值属部署策略，不作产品硬指标</strong></td>
+<td style="text-align: left;">第 12 章「高扩展」不变</td>
+</tr>
+<tr>
+<td style="text-align: left;">C-07</td>
+<td style="text-align: left;">隔离强度</td>
+<td style="text-align: left;">proot + Alpine + 持久 shell</td>
+<td style="text-align: left;"><code>Sandbox</code> 可替换，V1.2 宿主进程级</td>
+<td style="text-align: left;"><strong>以接口契约为准，实现分级陈述</strong></td>
+<td style="text-align: left;">第 16.3 已区分</td>
+</tr>
+<tr>
+<td style="text-align: left;">C-08</td>
+<td style="text-align: left;">模型流式</td>
+<td style="text-align: left;">SSE 客户端</td>
+<td style="text-align: left;">非流式，<code>onText</code> 已留</td>
+<td style="text-align: left;"><strong>接口支持流式；当前实现为非流式</strong></td>
+<td style="text-align: left;">第 16.3 已区分</td>
+</tr>
+<tr>
+<td style="text-align: left;">C-09</td>
+<td style="text-align: left;">可替换接口数量</td>
+<td style="text-align: left;">宿主五接口（SRS 3.6.4）</td>
+<td style="text-align: left;"><code>COVERAGE.md</code> 八列 7 个平台实现；<code>runtime/README.md</code> 六列 8 类</td>
+<td style="text-align: left;"><strong>7 个 Android 平台实现 + 1 个端云 <code>Transport</code> = 8 类可替换抽象</strong>；两种表述按维度各自成立</td>
+<td style="text-align: left;">第 16.3 与 <code>COVERAGE.md</code> 八均保留，不再视为冲突</td>
+</tr>
+</tbody>
+</table>
+<h3 id="h-59">17.3 需求反向追溯摘要</h3>
+<blockquote>
+<p>完整 20 项映射见 <code>PRD.md</code> 附录 F；本表给出方案章节与产品需求的对应关系。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">本文设计章节</th>
+<th style="text-align: left;">反向追问：解决谁的什么问题</th>
+<th style="text-align: left;">承接需求（<code>PRD.md</code>）</th>
+<th style="text-align: left;">代码落点</th>
+<th style="text-align: left;">验收</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">2.1 五层架构</td>
+<td style="text-align: left;">职责分离，换宿主不动内核</td>
+<td style="text-align: left;">FR-01、FR-12、NFR-18</td>
+<td style="text-align: left;"><code>Runtime.kt</code></td>
+<td style="text-align: left;">SC-04 / AC-08</td>
+</tr>
+<tr>
+<td style="text-align: left;">1.5 决策前置</td>
+<td style="text-align: left;">避免旁路导致风控与 trace 缺失</td>
+<td style="text-align: left;">FR-01、PM-01</td>
+<td style="text-align: left;"><code>router/RootRouter.kt</code></td>
+<td style="text-align: left;">AC-09</td>
+</tr>
+<tr>
+<td style="text-align: left;">1.3 独占工具禁 CLOUD</td>
+<td style="text-align: left;">端侧私有数据与系统能力不能上云</td>
+<td style="text-align: left;">FR-03、FR-05</td>
+<td style="text-align: left;"><code>router/RootRouter.kt</code></td>
+<td style="text-align: left;">SC-08 / AC-09</td>
+</tr>
+<tr>
+<td style="text-align: left;">3 三条主链路</td>
+<td style="text-align: left;">覆盖断网隐私 / 纯知识问答 / 大模型规划+本地执行</td>
+<td style="text-align: left;">FR-02、4.3</td>
+<td style="text-align: left;"><code>Runtime.kt</code></td>
+<td style="text-align: left;">AC-01 / AC-10 / AC-12</td>
+</tr>
+<tr>
+<td style="text-align: left;">6.2 信封协议</td>
+<td style="text-align: left;">弱网下消息不丢、不重、可审计</td>
+<td style="text-align: left;">FR-07~10</td>
+<td style="text-align: left;"><code>bus/CloudAgentBus.kt</code></td>
+<td style="text-align: left;">自检 <code>bus_*</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">5 会话状态机</td>
+<td style="text-align: left;">进程被杀后能接着跑，不重复已完成动作</td>
+<td style="text-align: left;">FR-14、FR-15、FR-19</td>
+<td style="text-align: left;"><code>session/SessionManager.kt</code></td>
+<td style="text-align: left;">AC-05</td>
+</tr>
+<tr>
+<td style="text-align: left;">6.4 200 轮上限</td>
+<td style="text-align: left;">防止无限循环烧钱，受控收尾不丢结果</td>
+<td style="text-align: left;">FR-20~22</td>
+<td style="text-align: left;"><code>core/AgentLoop.kt</code></td>
+<td style="text-align: left;">AC-04</td>
+</tr>
+<tr>
+<td style="text-align: left;">6.3 工具统一入口</td>
+<td style="text-align: left;">本地与云端调用同一套校验与风控</td>
+<td style="text-align: left;">FR-27~30</td>
+<td style="text-align: left;"><code>tools/ToolDispatchCenter.kt</code></td>
+<td style="text-align: left;">AC-10</td>
+</tr>
+<tr>
+<td style="text-align: left;">4 三道闸</td>
+<td style="text-align: left;">危险动作执行前必须判定、分级、授权</td>
+<td style="text-align: left;">FR-38~43</td>
+<td style="text-align: left;"><code>guard/*.kt</code></td>
+<td style="text-align: left;">AC-02 / AC-03</td>
+</tr>
+<tr>
+<td style="text-align: left;">9 数据存储与链路</td>
+<td style="text-align: left;">上层要实时进度且不能反向耦合内核</td>
+<td style="text-align: left;">FR-45~48</td>
+<td style="text-align: left;"><code>host/MultiSessionEventSink.kt</code></td>
+<td style="text-align: left;">AC-01</td>
+</tr>
+<tr>
+<td style="text-align: left;">12 非功能需求</td>
+<td style="text-align: left;">端侧低延迟、断网可用、全可观测</td>
+<td style="text-align: left;">NFR-01~26</td>
+<td style="text-align: left;">全局</td>
+<td style="text-align: left;"><code>PRD.md</code> 9.9</td>
+</tr>
+</tbody>
+</table>
+<h3 id="h-60">17.4 本设计文档被补齐的产品层缺口</h3>
+<p>以下内容原 <code>DESIGN.md</code> 未覆盖，由 <code>PRD.md</code> <strong>增量补齐</strong>（不改动本文已定稿的设计决策）：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">缺口</th>
+<th style="text-align: left;">补齐位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">产品愿景、核心价值、成功指标与口径</td>
+<td style="text-align: left;"><code>PRD.md</code> 2.1~2.3、9.8</td>
+</tr>
+<tr>
+<td style="text-align: left;">用户角色定义、权限矩阵、云端 Agent 作为非特权主体</td>
+<td style="text-align: left;"><code>PRD.md</code> 3.1 / 3.2</td>
+</tr>
+<tr>
+<td style="text-align: left;">审批规则的产品化（风险六类三档、五结局、审批人、云端同风控）</td>
+<td style="text-align: left;"><code>PRD.md</code> 3.3</td>
+</tr>
+<tr>
+<td style="text-align: left;">权限最小化与运行时能力降级</td>
+<td style="text-align: left;"><code>PRD.md</code> 3.4</td>
+</tr>
+<tr>
+<td style="text-align: left;">端侧交互面（任务提交表单、事件流订阅、审批卡片、会话列表、四态设计）</td>
+<td style="text-align: left;"><code>PRD.md</code> 第 5 章</td>
+</tr>
+<tr>
+<td style="text-align: left;">运维与治理控制台（明确为设计态，不宣称已实现）</td>
+<td style="text-align: left;"><code>PRD.md</code> 第 6 章</td>
+</tr>
+<tr>
+<td style="text-align: left;">数据模型的「逻辑模型 + 当前载体 + 目标态」三栏与存量迁移方案</td>
+<td style="text-align: left;"><code>PRD.md</code> 第 7 章</td>
+</tr>
+<tr>
+<td style="text-align: left;">非功能需求的口径裁决、隐私合规专项、AI 质量六模块</td>
+<td style="text-align: left;"><code>PRD.md</code> 9.3 / 9.7</td>
+</tr>
+<tr>
+<td style="text-align: left;">优先级（MoSCoW + RICE）、排期、风险登记册（概率 × 影响）</td>
+<td style="text-align: left;"><code>PRD.md</code> 第 10 章</td>
+</tr>
+<tr>
+<td style="text-align: left;">需求追踪矩阵 RTM、用户故事、18 个 Given/When/Then 验收场景</td>
+<td style="text-align: left;"><code>PRD.md</code> 附录 E / G</td>
+</tr>
+<tr>
+<td style="text-align: left;">依赖就绪度三档分级与最晚就绪时限</td>
+<td style="text-align: left;"><code>PRD.md</code> 4.5</td>
+</tr>
+</tbody>
+</table>
+<h3 id="h-61">17.5 交付物清单增补（对第 15 章）</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">#</th>
+<th style="text-align: left;">增补交付物</th>
+<th style="text-align: left;">位置</th>
+<th style="text-align: left;">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">10</td>
+<td style="text-align: left;">产品需求文档（PRD）</td>
+<td style="text-align: left;"><code>docs/PRD.md</code> / <code>docs/PRD.html</code></td>
+<td style="text-align: left;">10 章模板适配 + 64 条 FR + 26 条 NFR + 18 个 AC + RTM</td>
+</tr>
+<tr>
+<td style="text-align: left;">11</td>
+<td style="text-align: left;">口径裁决与需求追溯</td>
+<td style="text-align: left;"><code>docs/DESIGN.md</code> 第 17 章、<code>PRD.md</code> 1.6 / 附录 E / F</td>
+<td style="text-align: left;">消除两份既有文档冲突</td>
+</tr>
+<tr>
+<td style="text-align: left;">12</td>
+<td style="text-align: left;">网页生成扩展</td>
+<td style="text-align: left;"><code>tools/build_html.py</code></td>
+<td style="text-align: left;">新增 PRD 网页版；修正 SRS subtitle 统计笔误</td>
+</tr>
+</tbody>
+</table>
+<h3 id="h-62">17.6 一致性维护规则</h3>
+<ol>
+<li>口径冲突<strong>必须</strong>先查 <code>PRD.md</code> 1.6 裁决表，不得在两份文档各写一套；</li>
+<li>新增设计决策后，<strong>必须</strong>在 <code>PRD.md</code> 补对应需求条目与验收场景，否则视为「缺少为什么」；</li>
+<li>新增需求若改变本文已定稿的架构 / 工具 / 契约，<strong>必须</strong>走需求变更评估（影响范围 / 工期 / 成本 / 风险 / 干系人），未评估不更新范围与排期；</li>
+<li>每次文档变更同步更新修订记录、<code>runtime/COVERAGE.md</code> 与 <code>README.md</code>，并重新生成全部 HTML；</li>
+<li><strong>禁止</strong>把 <code>SimulatedCloudTransport</code> 的模拟闭环表述为「已与真实云端联调」，<strong>禁止</strong>把宿主进程级隔离表述为 OS 级隔离，禁止把设计态控制台表述为已交付。</li>
 </ol>
 </article></main>
 </div>
