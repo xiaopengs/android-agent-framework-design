@@ -11,6 +11,15 @@
 
 > 网页版由 `tools/build_html.py` 从 Markdown / DOCX 生成；Mermaid 走 jsDelivr CDN，离线环境可退回 Markdown 源文件阅读。
 
+## 代码骨架（可运行 runtime）
+
+- [runtime/README.md](runtime/README.md) — 无界面后台 runtime 的编译、运行方式与 NDJSON 事件契约
+- [runtime/COVERAGE.md](runtime/COVERAGE.md) — 与五层架构、10 个 P0 工具清单的逐项对齐矩阵、缺口与补齐路线
+- [runtime/dist/nm-headless-runtime.zip](runtime/dist/nm-headless-runtime.zip) — 最小可运行打包（源码 + 依赖 jar + 预编译 jar + 冒烟脚本）
+- 预编译产物：`runtime/out/nm-headless.jar`（JDK 11，`java -cp` 直接运行）
+
+当前骨架为 Layer4 内核 + Layer5 本地执行/风控的纯 LOCAL 垂直切片，已实现 4 个基础工具；协同路由、通信总线、平台能力工具与 MCP/A2A 适配的缺口见 COVERAGE.md。
+
 ## 文档要点
 
 - 五层架构：RootRouter 协同调度 → CloudAgentBus 通信总线 → 会话与队列 → Agent Looper 内核 → 工具中台与风控沙箱
