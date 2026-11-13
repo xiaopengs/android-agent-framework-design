@@ -5,6 +5,7 @@
 ## 目录
 
 - [docs/DESIGN.md](docs/DESIGN.md) — 完整方案设计文档（五层架构、3 条主链路顺序图、工具子时序、会话状态机、接口契约、10 个核心工具协议、验收标准）
+- [docs/REQUIREMENTS-SRS.docx](docs/REQUIREMENTS-SRS.docx) — 需求规格说明书（功能列表、模块列表、功能说明、活动时序、非功能与验收）
 
 ## 文档要点
 
