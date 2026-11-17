@@ -19,6 +19,15 @@
 
 > 网页版由 `tools/build_html.py` 从 Markdown / DOCX 生成；Mermaid 走 jsDelivr CDN，离线环境可退回 Markdown 源文件阅读。
 
+## 上游源码考证（qoderwiki）
+
+- [qoderwiki/README.md](qoderwiki/README.md) — **nanoMuse Android 架构知识库**入口与导航
+- [qoderwiki/nanoMuse-android-架构知识库.html](qoderwiki/nanoMuse-android-架构知识库.html) — 单文件自包含网页版（marked + mermaid 已内联，**离线可开、不走 CDN**）：7 章、23 张图、61 张证据表、100 段源码摘录
+- `qoderwiki/parts/*.md` — 7 章 Markdown 源：总纲 / 架构与数据流 / Looper 与轮次 / 模型输出与 Provider / Runtime 与工具体系 / 上下文召回与管理 / Browser 调用与界面
+- `qoderwiki/verify/` — JVM 验证台，`./run_all.sh` 一键重跑，**19 个测试类 / 145 个测试全绿**，被测类原样零改动，无需 Android SDK
+
+与 `docs/` 的分工：`docs/` 是**面向新框架的前向设计**，`qoderwiki/` 是**面向上游既有实现的后向考证**，为前向设计提供带行号的事实底座（基线 commit `067384b7`）。考证结论与产品口径冲突时，事实以 `qoderwiki/` 的行号证据为准，产品裁决仍以 `PRD.md` 1.6 为准。
+
 ## 文档体系与定位
 
 四份文档各司其职，**不互相替代**；口径冲突以 `PRD.md` 1.6「口径裁决表」为单一事实源（共 9 项裁决）：
