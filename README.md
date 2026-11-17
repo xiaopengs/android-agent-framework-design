@@ -19,14 +19,24 @@
 
 > 网页版由 `tools/build_html.py` 从 Markdown / DOCX 生成；Mermaid 走 jsDelivr CDN，离线环境可退回 Markdown 源文件阅读。
 
-## 上游源码考证（qoderwiki）
+## 上游源码考证（三端知识库）
 
-- [qoderwiki/README.md](qoderwiki/README.md) — **nanoMuse Android 架构知识库**入口与导航
-- [qoderwiki/nanoMuse-android-架构知识库.html](qoderwiki/nanoMuse-android-架构知识库.html) — 单文件自包含网页版（marked + mermaid 已内联，**离线可开、不走 CDN**）：7 章、23 张图、61 张证据表、100 段源码摘录
-- `qoderwiki/parts/*.md` — 7 章 Markdown 源：总纲 / 架构与数据流 / Looper 与轮次 / 模型输出与 Provider / Runtime 与工具体系 / 上下文召回与管理 / Browser 调用与界面
+同一方法论、同一基线 commit `067384b7`（2026-11-13，versionName 1.0.9）：**一切结论带 `路径:行号`；文档与源码冲突时以源码为准，并把冲突本身作为发现写出来。** 每个目录都是「单文件自包含 HTML（marked + mermaid 已内联，离线可开、不走 CDN）+ Markdown 源 + 可重跑的构建/校验工具」。
+
+| 目录 | 端 | 规模 | 头号事实 |
+| :--- | :--- | :--- | :--- |
+| [qoderwiki/](qoderwiki/README.md) | **Android** | 7 章 · 23 图 · 61 证据表 | 循环是 12,820 行 `ChatViewModel` 里的一个 suspend 函数；Runtime 是 PRoot + Alpine，不是 Python |
+| [web/](web/README.md) | **桌面** | 5 章 · 19 图 · 40 表 | **nanoMuse 写了零行 agent 循环**：dsh + 插件 bundle + Electron 外壳，loop 归上游 |
+| [ios/](ios/README.md) | **iOS** | 2 章 · 11 图 · 32 表 | 沙箱是 iSH **ARM64 fork** 的进程内用户态内核；**offload 血缘上 iOS 是原版、Android 是移植** |
+
+- 网页入口：[Android](qoderwiki/nanoMuse-android-架构知识库.html) · [桌面](web/nanoMuse-desktop-架构知识库.html) · [iOS](ios/nanoMuse-ios-架构知识库.html)
 - `qoderwiki/verify/` — JVM 验证台，`./run_all.sh` 一键重跑，**19 个测试类 / 145 个测试全绿**，被测类原样零改动，无需 Android SDK
+- `web/tools/`、`ios/tools/` — `build_site.py` 重建 HTML（实测与已提交产物**逐字节相同**）、`check_mermaid.py` 与 `verify_render.py` 用真实 headless Chromium 校验每张图确实渲染成 SVG（桌面 19/19、iOS 11/11，0 失败、0 控制台错误）
+- `requirements/` — **三端反向需求拆解**（从既有实现反推需求陈述、验收标准与重建要点），另一次提交
 
-与 `docs/` 的分工：`docs/` 是**面向新框架的前向设计**，`qoderwiki/` 是**面向上游既有实现的后向考证**，为前向设计提供带行号的事实底座（基线 commit `067384b7`）。考证结论与产品口径冲突时，事实以 `qoderwiki/` 的行号证据为准，产品裁决仍以 `PRD.md` 1.6 为准。
+三端读下来最可复用的一条洞察：**桥的复杂度由隔离边界决定，不由功能决定。** 同一个 offload 功能，iOS 在进程内只需函数指针 + 零字节 stub，Android 跨进程就必须上 socket + 协议 + 生命周期；代价是 Android 引入了 iOS 不存在的攻击面（abstract socket 无权限位、协议无鉴权字段），于是**桥的鉴权强度等于权限闸的覆盖强度**。
+
+与 `docs/` 的分工：`docs/` 是**面向新框架的前向设计**，三个知识库目录是**面向上游既有实现的后向考证**，为前向设计提供带行号的事实底座。考证结论与产品口径冲突时，事实以知识库的行号证据为准，产品裁决仍以 `PRD.md` 1.6 为准。
 
 ## 文档体系与定位
 
