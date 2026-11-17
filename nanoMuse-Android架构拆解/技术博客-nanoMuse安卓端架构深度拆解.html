@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>把一整个 Linux 和一只 Agent 装进手机：nanoMuse 安卓端架构深度拆解</title>
+<style>
+/* ===========================================================================
+   _core.css —— 领域组件的共享结构样式（被 build.py 在每套主题之前加载）
+   ---------------------------------------------------------------------------
+   契约：本文件是「新增领域块」的唯一结构样式来源。所有规则只用 CSS 变量表达，
+   因此换主题时只需在主题文件的 :root 里改变量、或补领域组件选择器覆盖，无需重写
+   整块。经典排版（正文/标题/表格/图/公式/callout/定理族）仍由各主题自带；本文件
+   只补 multi-style 时代没有的调研组件：图表、KPI 卡、风险条款卡、内容盒、方案对比
+   卡、技术流程节点。
+
+   变量分层：
+   - 主题应定义的基础变量（--color-text / --color-muted / --color-accent /
+     --color-rule / --color-bg 等）本文件只「使用」，不定义。
+   - 领域组件专属变量（--chart-1..8 图表色板、--sem-pos/warn/neg 语义色、
+     --chart-height 画布高度）在此给出无障碍默认值；主题可在自己的 :root 覆盖。
+     因为主题在 core 之后加载，同为 :root 的覆盖会生效。
+   =========================================================================== */
+
+:root {
+  /* 分类图表色板：默认 Okabe-Ito 无障碍 8 色（色盲友好、灰度可分辨）。 */
+  --chart-1: #0072B2;
+  --chart-2: #E69F00;
+  --chart-3: #009E73;
+  --chart-4: #CC79A7;
+  --chart-5: #56B4E9;
+  --chart-6: #D55E00;
+  --chart-7: #F0E442;
+  --chart-8: #999999;
+  /* 语义色：正面/中性提示/负面（风险分级、KPI 涨跌都复用，去 emoji 靠颜色）。 */
+  --sem-pos:  #1f8a5b;
+  --sem-warn: #c98a1a;
+  --sem-neg:  #c0392b;
+  /* 图表画布默认高度（可被 --extra-css 或主题覆盖）。 */
+  --chart-height: 400px;
+  /* 外链色：[ID](url) 渲染为 <a class="ref">[ID]</a> 的统一配色，
+     主题可在自己的 :root 覆盖以贴合主题色。 */
+  --ref-color: #1a73e8;
+}
+
+/* 页眉日期是页眉署名行的子元素；多数主题只样式化 .doc-byline，这里给 .doc-date
+   一个跨主题的默认颜色（主题若自定义会覆盖它），使 class 契约完整。 */
+.doc-byline .doc-date { color: var(--color-muted); }
+
+/* --- 外链：[ID](url) → <a class="ref" href="url" rel="noopener" target="_blank">[ID]</a) -
+   build.py 给所有外链 markdown 链接打 .ref 并把显示文本包成 [ID]；这里只给结构样式：
+   用 --ref-color 上色、缩小字号、去下划线/底边（与各主题 a { border-bottom } 区分开）。
+   类选择器优先级高于元素选择器 a，故主题里的 a 规则不会盖掉它；主题可在 :root 覆盖
+   --ref-color 以贴合自身配色。 */
+.ref {
+  color: var(--ref-color);
+  text-decoration: none;
+  border-bottom: none;
+  font-size: .85em;
+  white-space: nowrap;
+}
+
+/* --- 表格自适应：宽表横向滚动，不撑破正文宽度（PC 与移动端一致） ---------- */
+/* build.py 把每张 <table> 包进 <div class="table-scroll">。窄表正常铺满 100%；
+   列多 / 长 token 使表格 min-content 超过正文宽度时，在此处横向滚动，正文整体
+   宽度与边距不被撑破。不强制 white-space:nowrap，让单元格文字优先换行自适应，
+   只在确有不可断内容时才滚动。 */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+}
+.table-scroll > table { margin-top: 0; }
+.table-scroll > table > caption { caption-side: top; }
+
+/* --- 图表（ECharts 画布 + 标题；配色由 build.py 的 init 脚本注入） --------- */
+.chart-figure { margin: 1.8em 0; }
+.chart-title {
+  font-weight: 700; color: var(--color-text); font-size: .96rem;
+  margin: 0 0 .5em; text-align: center;
+}
+.chart-title .fignum { color: var(--color-accent); }
+.chart {
+  width: 100%; height: var(--chart-height); min-height: 240px;
+}
+
+/* --- KPI 卡片 / 网格 ------------------------------------------------------ */
+.kpi-grid {
+  display: grid; gap: .9rem; margin: 1.4em 0;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+.kpi-card {
+  padding: 1rem 1.1rem; border-radius: 10px;
+  background: color-mix(in srgb, var(--color-accent) 5%, var(--color-bg));
+  border: 1px solid var(--color-rule);
+  border-top: 3px solid var(--color-accent);
+}
+.kpi-trend-up   { border-top-color: var(--sem-pos); }
+.kpi-trend-down { border-top-color: var(--sem-neg); }
+.kpi-value {
+  font-size: 1.7rem; font-weight: 700; line-height: 1.15;
+  color: var(--color-text); letter-spacing: -.01em;
+}
+.kpi-label { font-size: .82rem; color: var(--color-muted); margin-top: .25rem; }
+.kpi-delta {
+  display: inline-block; margin-top: .5rem; font-size: .8rem; font-weight: 600;
+  padding: .08em .5em; border-radius: 999px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+.kpi-delta.kpi-up   { color: var(--sem-pos); }
+.kpi-delta.kpi-down { color: var(--sem-neg); }
+.kpi-delta.kpi-flat { color: var(--color-muted); }
+.kpi-note { font-size: .85rem; color: var(--color-muted); margin-top: .5rem; }
+.kpi-note p { margin: .2em 0; }
+
+/* --- 风险条款卡（彩色左边框替代 emoji；等级 risk-high/medium/low） -------------------------------------- */
+.clause-card {
+  margin: 1.2em 0; padding: .9em 1.1em; border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--color-rule) 22%, var(--color-bg));
+  border-left: 4px solid var(--color-muted);
+}
+.clause-card.risk-high   { border-left-color: var(--sem-neg); }
+.clause-card.risk-medium { border-left-color: var(--sem-warn); }
+.clause-card.risk-low    { border-left-color: var(--sem-pos); }
+.clause-head { margin: 0 0 .4em; font-weight: 700; }
+
+/* --- 内容盒：核心发现 / 研究方法 / 行动建议 / 局限 ------------------------ */
+.content-box {
+  margin: 1.4em 0; padding: 1em 1.2em; border-radius: 8px;
+  background: color-mix(in srgb, var(--color-accent) 4%, var(--color-bg));
+  border: 1px solid var(--color-rule); border-left: 4px solid var(--color-accent);
+}
+.content-box .box-title {
+  margin: 0 0 .5em; font-weight: 700; color: var(--color-accent);
+  font-size: .95rem; letter-spacing: .01em;
+}
+.content-box p:last-child, .content-box ul:last-child, .content-box ol:last-child { margin-bottom: 0; }
+.box-keyfindings { border-left-color: var(--color-accent); }
+.box-keyfindings .box-title { color: var(--color-accent); }
+.box-methodology { border-left-color: var(--color-muted); }
+.box-methodology .box-title { color: var(--color-muted); }
+.box-recommendations { border-left-color: var(--sem-pos); }
+.box-recommendations .box-title { color: var(--sem-pos); }
+.box-limitations { border-left-color: var(--sem-warn); }
+.box-limitations .box-title { color: var(--sem-warn); }
+
+/* --- 方案对比卡 ---------------------------------------------------------- */
+.method-grid {
+  display: grid; gap: 1rem; margin: 1.4em 0;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+.method-card {
+  padding: 1rem 1.1rem; border: 1px solid var(--color-rule); border-radius: 10px;
+  background: var(--color-bg);
+}
+.method-title {
+  margin: 0 0 .6em; font-weight: 700; color: var(--color-accent);
+  padding-bottom: .35em; border-bottom: 1px solid var(--color-rule);
+}
+.method-pros, .method-cons { margin: .6em 0; }
+.proscons-title { margin: 0 0 .2em; font-weight: 700; font-size: .85rem; }
+.method-pros .proscons-title { color: var(--sem-pos); }
+.method-cons .proscons-title { color: var(--sem-neg); }
+.method-pros ul, .method-cons ul { margin: .2em 0 .2em 1.2em; }
+
+/* --- 技术流程（横向节点 + CSS 箭头，去 emoji） --------------------------- */
+.tech-flow {
+  display: flex; flex-wrap: wrap; align-items: stretch; gap: .4rem;
+  margin: 1.4em 0;
+}
+.tech-node {
+  flex: 1 1 150px; min-width: 130px; padding: .8em 1em;
+  border: 1px solid var(--color-rule); border-radius: 8px;
+  background: color-mix(in srgb, var(--color-accent) 5%, var(--color-bg));
+}
+.tech-node-title { margin: 0 0 .3em; font-weight: 700; color: var(--color-accent); }
+.tech-node p { margin: .2em 0; font-size: .9rem; }
+.tech-arrow {
+  align-self: center; flex: 0 0 auto; width: 0; height: 0;
+  border-top: 7px solid transparent; border-bottom: 7px solid transparent;
+  border-left: 11px solid var(--color-muted);
+}
+
+@media (max-width: 640px) {
+  .tech-flow { flex-direction: column; }
+  .tech-arrow {
+    align-self: center; border-left: 7px solid transparent;
+    border-right: 7px solid transparent; border-top: 11px solid var(--color-muted);
+    border-bottom: 0;
+  }
+}
+
+@media print {
+  .chart { break-inside: avoid; }
+  .kpi-card, .clause-card, .method-card, .content-box, .tech-node { break-inside: avoid; }
+  .table-scroll { overflow: visible; }   /* PDF 不滚动：表格原样排出，由分页处理 */
+}
+
+
+/* ===========================================================================
+   modern-minimalist.css —— 灰度克制、面向数据可视化的学术/研究风格
+   共享 build.py 的 class 契约；领域组件结构来自 _core.css。
+   =========================================================================== */
+:root {
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, "PingFang SC", "Noto Sans CJK SC", sans-serif;
+  --font-head: var(--font-body);
+  --font-mono: "SFMono-Regular", Menlo, Consolas, "Noto Sans Mono CJK SC", monospace;
+  --color-text: #1a1a1a;
+  --color-muted: #6a6a6a;
+  --color-accent: #2b2b2b;
+  --color-accent-soft: #f0f0f0;
+  --color-rule: #dcdcdc;
+  --color-bg: #ffffff;
+  --measure: 56rem;
+  --base-size: 16px;
+  --leading: 1.66;
+  /* 学术图表：Okabe-Ito 无障碍色板（色盲友好、灰度可分辨）。 */
+  --chart-1: #0072B2;
+  --chart-2: #E69F00;
+  --chart-3: #009E73;
+  --chart-4: #CC79A7;
+  --chart-5: #56B4E9;
+  --chart-6: #D55E00;
+  --chart-7: #F0E442;
+  --chart-8: #999999;
+  --sem-pos: #009E73;
+  --sem-warn: #E69F00;
+  --sem-neg: #D55E00;
+}
+
+html { background: #f4f4f4; }
+body { margin: 0; color: var(--color-text); background: var(--color-bg);
+  font: var(--base-size)/var(--leading) var(--font-body); -webkit-font-smoothing: antialiased; }
+.report { max-width: var(--measure); margin: 0 auto; padding: 4.5rem 2rem 6rem; background: var(--color-bg); }
+
+.doc-header { margin-bottom: 2.6rem; padding-bottom: 1.4rem; border-bottom: 1px solid var(--color-text); }
+.doc-title { font-size: 1.95rem; font-weight: 700; line-height: 1.18; letter-spacing: -.01em; margin: 0 0 .5rem; }
+.doc-subtitle { font-size: 1.12rem; color: var(--color-muted); font-weight: 400; margin: 0 0 .8rem; }
+.doc-byline { font-size: .85rem; color: var(--color-muted); text-transform: uppercase; letter-spacing: .06em; margin: .8rem 0 0; }
+.doc-author { font-weight: 600; color: var(--color-text); }
+
+.abstract { border: 1px solid var(--color-rule); border-radius: 6px; padding: 1.3rem 1.5rem; margin-bottom: 2.6rem; background: #fafafa; }
+.abstract-title { text-transform: uppercase; letter-spacing: .1em; font-size: .74rem; font-weight: 700; color: var(--color-muted); margin: 0 0 .6rem; }
+.abstract p { margin: 0 0 .6rem; } .abstract p:last-child { margin-bottom: 0; }
+
+.doc-body h1, .doc-body h2, .doc-body h3, .doc-body h4 { font-weight: 700; line-height: 1.25; margin: 2em 0 .6em; }
+.doc-body h1 { font-size: 1.4rem; } .doc-body h2 { font-size: 1.18rem; }
+.doc-body h3 { font-size: 1.04rem; } .doc-body h4 { font-size: 1rem; color: var(--color-muted); font-style: italic; }
+.secnum { font-weight: 700; margin-right: .5em; color: var(--color-muted); }
+
+.doc-body p { margin: 0 0 1rem; text-align: justify; hyphens: auto; }
+ul, ol { margin: .6em 0 1.1em 1.3em; padding: 0; } li { margin: .3em 0; }
+a { color: var(--color-text); text-decoration: none; border-bottom: 1px solid var(--color-muted); }
+a.xref { border: none; font-weight: 600; } .xref-broken { color: #b00; }
+
+.callout { margin: 1.4em 0; padding: .9em 1.1em; background: #fafafa; border: 1px solid var(--color-rule); border-radius: 4px; }
+.callout-title { font-weight: 700; margin: 0 0 .35em; }
+.note { border-left: 3px solid var(--color-text); }
+.tip, .takeaway { border-left: 3px solid var(--sem-pos); } .warning { border-left: 3px solid var(--sem-neg); background: #fbf2ee; }
+.info { border-left: 3px solid var(--chart-1); }
+
+.theorem-block { margin: 1.4em 0; padding-left: 1.1em; border-left: 2px solid var(--color-text); }
+.thm-title { margin: 0 0 .3em; } .thm-head { font-weight: 700; }
+.theorem-block.theorem, .theorem-block.lemma, .theorem-block.proposition, .theorem-block.corollary { font-style: italic; }
+.proof { margin: 1.1em 0; color: var(--color-muted); } .proof-title { font-style: italic; display: inline; margin: 0 .4em 0 0; }
+.proof-title + * { display: inline; } .qed { float: right; }
+
+.figure { margin: 1.8em 0; text-align: center; } .figure img { max-width: 100%; height: auto; }
+figcaption { font-size: .86rem; color: var(--color-muted); margin-top: .6em; } .fignum { font-weight: 700; color: var(--color-text); }
+
+table { border-collapse: collapse; width: 100%; margin: 1.6em 0; font-size: .92rem; }
+caption { caption-side: top; text-align: left; font-size: .86rem; color: var(--color-muted); margin-bottom: .6em; }
+.tabnum { font-weight: 700; color: var(--color-text); }
+th, td { padding: .5em .8em; text-align: left; }
+thead th { border-top: 1.5px solid var(--color-text); border-bottom: 1px solid var(--color-text); font-weight: 700; }
+tbody tr { border-bottom: 1px solid var(--color-rule); } tbody tr:last-child { border-bottom: 1.5px solid var(--color-text); }
+
+.math-block { margin: 1.2em 0; text-align: center; position: relative; }
+.eqnum { position: absolute; right: 0; top: 50%; transform: translateY(-50%); color: var(--color-muted); }
+
+pre.code { font-family: var(--font-mono); font-size: .85rem; background: #f6f6f6; border: 1px solid var(--color-rule); padding: .9em 1.1em; border-radius: 4px; overflow-x: auto; }
+code { font-family: var(--font-mono); font-size: .9em; }
+blockquote { margin: 1.3em 0; padding: .3em 0 .3em 1.1em; border-left: 2px solid var(--color-rule); color: var(--color-muted); }
+hr { border: none; border-top: 1px solid var(--color-rule); margin: 2.2em 0; }
+
+@media print { html, body { background: #fff; } .report { padding: 0; max-width: none; } }
+
+
+/* ===========================================================================
+   _polish.css —— 通用打磨层（非主题；下划线开头，不进入 --list-styles）
+   ---------------------------------------------------------------------------
+   由 build.py 在每次渲染时自动加载，级联固定为：
+       _core.css → 主题 → 本文件 → 可选 --extra-css
+   职责：跨主题一致的细节修正，不改变任何主题的气质。只做五类事：
+   数字排版（等宽对齐）、外链观感、嵌套列表间距、宽表滚动与图片兜底、
+   打印分页与可达性。全部规则变量驱动 / 低特异性，任何主题都可安全叠加；
+   主题如需不同行为，用更高特异性选择器或 --extra-css 覆盖即可。
+   =========================================================================== */
+
+/* --- 1. 数字排版：表格与 KPI 的数字一律等宽对齐 --------------------------- */
+td, th { font-variant-numeric: tabular-nums lining-nums; }
+.kpi-value, .kpi-delta, .eqnum, .secnum { font-variant-numeric: tabular-nums lining-nums; }
+
+/* --- 2. 外链：上标化处理，弱化对行文的打断 ----------------------------- */
+.ref {
+  /* font-size: 0.78em;
+  vertical-align: 0.28em;
+  line-height: 0; */
+  padding: 0 0.08em;
+}
+
+/* --- 3. 嵌套列表：子列表收紧上下间距（引擎支持嵌套后各主题的统一默认） ------ */
+li > ul, li > ol { margin: 0.25em 0 0.35em 1.25em; }
+
+/* --- 4. 图片与画布的兜底约束、宽表滚动条观感 -------------------------------- */
+img { max-width: 100%; height: auto; }
+.chart > canvas, .chart > div { max-width: 100%; }
+.table-scroll { scrollbar-width: thin; }
+.table-scroll::-webkit-scrollbar { height: 8px; }
+.table-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-rule, #ccc);
+  border-radius: 4px;
+}
+
+/* --- 5. 可达性：键盘焦点可见 -------------------------------------------------- */
+a:focus-visible {
+  outline: 2px solid var(--color-accent, #06c);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* --- 6. 打印与 PDF：孤行/寡行、标题吸附、页边距、跨页表头 ---------------------- */
+@media print {
+  @page { margin: 18mm 16mm; }
+  p, li { orphans: 3; widows: 3; }
+  .doc-body h1, .doc-body h2, .doc-body h3, .doc-body h4 { break-after: avoid; }
+  .chart-figure, .figure, .math-block, .theorem-block,
+  .kpi-grid, .method-grid, .tech-flow { break-inside: avoid; }
+  .doc-header { break-after: avoid; }
+  thead { display: table-header-group; }   /* 跨页表格重复表头 */
+  .ref { color: inherit; }                 /* 打印时外链不抢焦点 */
+}
+
+</style>
+</head>
+<body>
+<article class="report">
+<header class="doc-header">
+<h1 class="doc-title">把一整个 Linux 和一只 Agent 装进手机：nanoMuse 安卓端架构深度拆解</h1>
+</header>
+
+<div class="doc-body">
+<blockquote><p>本文从架构师视角拆解开源个人智能体 nanoMuse（浙江大学 APRIL 实验室，GPL-3.0）的 Android 端实现：从整体架构到数据流转，从 Looper（Agent 主循环）到 Runtime（沙箱运行时），从工具的定义、召回到执行，从 Browser 工具的调用链到界面，再到上下文管理与模型 I/O。所有结论基于 main 分支源码（2026-11-17 快照），标注文件与函数名，可复查、可重现。配套分章知识库见同目录 README。</p></blockquote>
+<h1 id="sec-1">0. 先纠正一个普遍误解</h1>
+<p>很多人（包括不少二手文章）以为 nanoMuse 的 Android 端是"App 里跑一个 Python 服务"。<strong>不是。</strong> 仓库里确实有一套完整的 Python 运行时（<code>nanomuse/</code> 包），但那是桌面/Web/服务端形态；早期 Android 的 Python 路线已被归档进 <code>docs/archive/android-python-line.md</code>。今天下载到的 APK 是基于 <strong>OpenMinis 1.13</strong> 改造的<strong>原生 Kotlin 应用</strong>——智能体主循环、工具执行、沙箱全部跑在手机原生层。官方文档的原话是 "a native app whose agent runs on the phone"。</p>
+<p>这个事实决定了整篇拆解的坐标系：</p>
+<ul><li>论文里的 <strong>Sentinel</strong>（唯一权限权威），在 Android 端是 <code>io.github.nanomuse.guard</code> 包；</li><li>社区讨论里的 <strong>Looper</strong>，在 Android 端是 <code>ChatViewModel.runAgentLoop()</code>；</li><li><strong>Runtime</strong>，是 PRoot + Alpine Linux 沙箱加一条精妙的宿主桥接。</li></ul>
+<p>代码分两个命名空间：<code>com.openminis.app.*</code> 是上游基础设施（nanoMuse 的每处修改都带 <code>// nanoMuse:</code> 注释标记），<code>io.github.nanomuse.*</code> 是 nanoMuse 自有特性。读代码时先看包名，就知道这个设计是谁的。</p>
+<h1 id="sec-2">1. 整体架构：一张图看懂</h1>
+<div class="mermaid">
+flowchart TB
+    subgraph UI["UI 层 (Compose)"]
+        CHAT["聊天界面<br/>工具胶囊 / 浏览器卡片 / 审批卡"]
+    end
+    subgraph VM["ChatViewModel (~12800 行)"]
+        SEND["sendMessage"]
+        LOOP["runAgentLoop<br/>200 轮预算"]
+        CTX["上下文管理<br/>ContextBudget/Trimming/Compact"]
+        PROMPT["buildSystemPrompt<br/>稳定前缀+易变后缀"]
+    end
+    subgraph PROV["Provider 层"]
+        OAI["OpenAI CC/Responses"]
+        ANT["Anthropic"]
+        GEM["Gemini"]
+        ETC["OpenRouter/xAI/..."]
+    end
+    subgraph TOOLS["工具层"]
+        REG["AgentTools: 8 个原生工具"]
+        GUARD["RiskGate 守护<br/>ShellGuard/BrowserGuard"]
+        DET["ToolLoopDetector 熔断"]
+    end
+    subgraph RT["Runtime"]
+        EC["ExecutionCoordinator<br/>会话级并发"]
+        PS["PersistentShell ×N"]
+        PROOT["PRoot + Alpine rootfs"]
+        NO["NativeOffload 桥<br/>android-*/minis-* CLI"]
+    end
+    subgraph DATA["数据层"]
+        DB["Room: 消息/会话/技能/MCP"]
+        MEM["文件记忆: GLOBAL.md + 每日日志"]
+        SK["SKILL.md 技能库"]
+    end
+    CHAT --> SEND --> LOOP
+    LOOP <--> CTX
+    LOOP --> PROMPT
+    LOOP <--> PROV
+    LOOP --> REG --> GUARD
+    LOOP --> DET
+    GUARD --> EC --> PS --> PROOT
+    PROOT <--> NO
+    LOOP --> DB
+    PROMPT --> MEM
+    PROMPT --> SK
+</div>
+<p>一条消息的数据流可以浓缩成五个不变量：</p>
+<ol><li><strong>完整历史不可变，请求视图可裁剪。</strong> 内存里的 <code>agentHistory</code> 和 Room 里的持久化历史永远是全量；每次请求前生成一份只用于发送的视图，裁剪、卸载都发生在视图上。</li><li><strong>工具结果以 user 角色消息回传</strong>（Anthropic 形状），OpenAI 系 Provider 序列化时再转 <code>tool</code> 角色。</li><li><strong>一轮 agent loop 一个气泡。</strong> 几十次工具调用渲染进同一条 assistant 消息，只有排队消息注入和循环内压缩会"封印旧气泡、开新气泡"。</li><li><strong>UI 全节流。</strong> 文本按长度六级节流（150ms～2s），工具参数按类型节流（文件 1s/其他 200ms）。</li><li><strong>会话内串行、会话间并行。</strong> 每会话一个长驻 shell 一把锁，跨会话并发。</li></ol>
+<p>下面逐层拆。</p>
+<h1 id="sec-3">2. Looper：200 轮预算内的流式状态机</h1>
+<p>主循环在 <code>ChatViewModel.kt</code> 约 7630 行，<code>for (turn in 0 until MAX_AGENT_TURNS)</code>，上限 200。每轮做五件事：</p>
+<div class="mermaid">
+sequenceDiagram
+    participant L as runAgentLoop
+    participant C as 上下文闸
+    participant P as Provider(SSE)
+    participant G as 守护/熔断
+    participant T as 工具执行
+    participant H as agentHistory
+    L->>C: prepareContext + inLoopContextCheck
+    alt 压缩发生
+        C-->>L: COMPACTED(封印气泡,开新气泡)
+    else 无法恢复
+        C-->>L: STOP(可恢复停止)
+    end
+    L->>P: streamMessage(请求视图, 系统提示词, 工具schema)
+    P-->>L: Thinking/Text/ToolUseStart/ToolInputDelta/ToolCallComplete/Usage/Finished
+    L->>H: assistant 消息入历史(text + ToolUse parts + reasoning)
+    alt 无工具调用
+        L->>L: 结束(空回复恢复/断流检测)
+    else 有工具调用
+        loop 每个调用
+            L->>G: 参数修复→熔断check→preflight
+            G-->>L: 放行 / 合成错误结果
+            L->>T: executeTool
+            T-->>L: ToolExecutionResult
+            L->>G: record(警告附进结果)
+        end
+        L->>H: 工具结果以 user 角色入历史
+        L->>L: 检查排队消息→有则注入新轮
+    end
+</div>
+<h2 id="sec-4">2.1 流事件处理的三个精细设计</h2>
+<p><strong>文本块的两种语义。</strong> Provider 接口有个布尔属性 <code>streamTextIsMonolithic</code>：OpenAI Chat Completions 的一个响应只有一个 content 字符串，文本与 tool<em>calls 没有时序关系——所以全部文本合并进一个位于工具块之前的文本块；qwen 等端点在 tool</em>calls 之后吐尾部 content 的分块怪癖，会被合并回前工具文本块，而不是伪造"工具后文本"。Anthropic/Responses 则是到达顺序即语义顺序，工具打断文本后新文本开新块。<strong>把协议差异声明成属性，而不是在循环里写 if-else 猜</strong>，这是值得抄的设计。</p>
+<p><strong>tool<em>call</em>id 去重。</strong> 部分兼容网关并行发同 id 的 tool_calls，回传必 400。循环用 start/complete/in-flight 三个计数器把重复 id 重命名为 <code>&lt;id&gt;-2</code>、<code>&lt;id&gt;-3</code>，UI 块、持久化、结果配对全部用重命名后的 id。</p>
+<p><strong>工具开始前的强制 flush。</strong> ToolUseStart 到达时，先把节流窗口里没推送的文本无节流 flush 并 <code>yield()</code> 让 Compose 渲染，再插工具块——否则前一段文本的尾巴会被冻结在流式渲染器里（事故编号 T154）。</p>
+<h2 id="sec-5">2.2 三层容错</h2>
+<ul><li><strong>瞬态/网络/5xx</strong>：同 Provider 重试，退避 1→2→4s，回滚本轮部分块但保留已流出的文本在屏幕上。</li><li><strong>限流</strong>：不重试同 Provider（限流是 Provider 级信号），直接切模型组里的下一个 fallback；同模型不同端点的恢复是透明的，不闪模型胶囊。</li><li><strong>上下文超长</strong>：只允许一次"先强制裁剪、确认视图真的变小、再重发"，禁止原样重发。</li></ul>
+<h2 id="sec-6">2.3 四级熔断：ToolLoopDetector</h2>
+<p>独立类，每会话一个，30 条滑动窗口，执行前 check（可拦截）/执行后 record（只警告）：</p>
+<div class="table-scroll"><table><thead><tr><th>策略</th><th>阈值</th><th>抓什么</th></tr></thead><tbody><tr><td>unknown<em>tool</em>repeat</td><td>连续 10</td><td>模型幻觉出不存在的工具反复调</td></tr><tr><td>global<em>circuit</em>breaker</td><td>30</td><td>同参数同结果的终极兜底</td></tr><tr><td>known<em>poll</em>no_progress</td><td>警告 10/拦截 20</td><td>轮询类工具结果冻结</td></tr><tr><td>generic_repeat</td><td>10</td><td>非轮询工具同参数重复</td></tr></tbody></table></div>
+<p>两个魔鬼细节：参数哈希<strong>剔除 tool_title</strong>（模型爱加 "#1/#2" 后缀，不剔除则所有重复检测静默失效）；参数做键递归排序的稳定 JSON 再 SHA-256。拦截时合成 isError 的 ToolResult 保持配对平衡，模型下一轮看得到拦截原因。这个类零 Android 依赖，是整个项目最值得直接移植的组件。</p>
+<h2 id="sec-7">2.4 五种终止与排队注入</h2>
+<p>终止路径：正常结束（无工具调用）、断流（finish_reason 为 null 且有内容 → 可恢复）、空回复（工具结果后的一次性 system-reminder 重试）、上下文 STOP（可恢复）、200 轮耗尽（finalizeAtTurnLimit，可恢复）。<code>loopExitedNormally</code> 标记区分"有意停止"与"跑飞"，否则每次正常完成都会被贴假的 turn-limit 错误——这是源码注释里记载的真实 bug。</p>
+<p>用户在流式期间再发消息会入队，<strong>注入时机是工具结果边界</strong>而非整轮结束：注入时先插一条只存在于 wire format、不落库的 assistant 桥接消息，防止 Anthropic 的连续同角色合并把排队消息折进工具结果（#579 回归）。</p>
+<h2 id="sec-8">2.5 性能：一部 ANR 事故史</h2>
+<p>源码注释里的 T94/T256/T307 是三个真实事故：每 delta  hop Main 线程打满触摸队列（5001ms ANR）→ 50ms 合并；固定 50ms 在 Pixel 4a 仍卡 → 六级长度阶梯节流；<code>String +=</code> 的 O(n²) 拷贝打爆 256MB 堆 → 热路径全改 StringBuilder。另有首包看门狗每 10s 报告"没收到任何 chunk"，区分请求没发出/Provider 没答/路由错会话三种卡死。<strong>读这段代码最大的收获不是循环本身，是注释里完整的事故推理链。</strong></p>
+<h1 id="sec-9">3. Runtime：PRoot、长驻 Shell 与 execve 桥</h1>
+<h2 id="sec-10">3.1 三层抽象</h2>
+<p>PRootKernel（全局单例，boot 一次：Alpine rootfs + proot 二进制 + bind mounts 表）→ ExecutionCoordinator（每会话 Mutex + shell 注册表，会话间并发）→ PersistentShell（每会话一个长驻 <code>/bin/sh</code>）。</p>
+<p>proot 命令每个标志都有理由：<code>-0</code> 假 root；<code>--link2symlink</code> 把硬链接翻译成软链接——Android /data 拒绝应用 uid 跨目录硬链接，而 Alpine apk 装 busybox-applet 包靠硬链接，不加这个标志每个这类安装都 EPERM；<code>-b</code> 绑定 /dev /proc /sys 与用户目录。</p>
+<h2 id="sec-11">3.2 长驻 shell 的标记协议</h2>
+<p>命令写入 stdin 时追加一行 <code>echo &quot;__MINIS_DONE_&lt;随机marker&gt;_EXIT_$?__&quot;</code>，readLoop 遇标记行解析退出码。三个语义值得记：<strong>超时不杀 shell</strong>（返回 124，下条命令仍可用）；shell 死亡返回自描述报告（退出码 + 最后 300 字符输出）；环境变量<strong>全量快照注入</strong>并 unset 已删除的键——长驻进程否则永远留着过期密钥。</p>
+<h2 id="sec-12">3.3 NativeOffload：最有意思的机制</h2>
+<p>沙箱里的 <code>android-calendar</code>、<code>android-location</code>、<code>minis-model-use</code> 这些 CLI 怎么调用 Android 框架能力？答案是对 proot 的自定义扩展：</p>
+<div class="mermaid">
+sequenceDiagram
+    participant G as Guest 进程
+    participant P as proot 扩展
+    participant S as 宿主 NativeOffloadServer
+    G->>P: execve("android-calendar", argv, envp)
+    P->>S: abstract unix socket (argv/env/cwd)
+    S->>S: 注册的 Kotlin Handler 执行
+    S-->>P: (exitCode, 输出写入 guest /tmp 文件)
+    P->>G: execve 改写为 /bin/cat <tmpfile>
+    Note over G: 看到的就是普通 stdout
+</div>
+<p>guest 以为自己在执行一个二进制，实际执行被劫持到宿主 Kotlin，输出经临时文件回流。socket 名带应用 ID（abstract socket 全设备一个命名空间，与 OpenMinis 同机安装会打架，#271）；权限闸门放在 IPC 层，无论模型走命名工具还是裸 shell，CLI 都落到同一处检查。<code>minis-model-use</code> 甚至让模型调用用户配置的其他 LLM——模型调模型的递归能力。</p>
+<h2 id="sec-13">3.4 bash 按需与自愈</h2>
+<p>Alpine 只有 BusyBox ash。BashismDetector 检出 bash 语法就 apk 装 bash（独立预算不占命令超时），脚本 base64 自写临时文件执行，整体包子 shell（裸 exit 会在标记 echo 前杀掉长驻 shell）；<code>command -v bash || exit 119</code> 哨兵检测 bash 被用户删掉，触发一次重装自愈。</p>
+<h1 id="sec-14">4. 工具系统：小 schema、渐进披露、七道工序</h1>
+<h2 id="sec-15">4.1 只有 8 个原生工具</h2>
+<p>shell<em>execute、file</em>read/write/edit、read<em>image、browser</em>use、memory<em>write/get。两个带准入：read</em>image 只在主模型有视觉或配了 Vision Group 时出现；memory 工具随记忆开关与提示词片段<strong>同步消失</strong>（双闸对称）。其余一切能力——日历、定位、通知、TTS、Shizuku、MCP、定时任务、调其他模型——全部走 shell 里的 CLI。这是明确的取舍：<strong>原生 schema 小而稳定，长尾能力 CLI 化</strong>。每个工具必填 <code>tool_title</code>（5-10 词、用户语言），用户看到的工具胶囊是人话标题不是 JSON。</p>
+<h2 id="sec-16">4.2 三层渐进披露</h2>
+<div class="mermaid">
+flowchart LR
+    A["常驻: 8 工具完整 schema"] --> B["提示词披露: 技能 name+desc(≤1024码点)+路径<br/>MCP Top-20 清单 / CLI 用法段"]
+    B --> C["按需读取: file_read SKILL.md 全文<br/>minis-mcp-cli tools/call<br/>CLI --help"]
+</div>
+<p>技能是 SKILL.md（YAML frontmatter 用 SafeConstructor 解析，限 64KB/32 层嵌套），披露只给元数据，指令全文模型用前必须读；读到即记录使用。热更新有三条路径：每次构建提示词前重扫磁盘（捕获 shell git clone 放入的技能）、file_write/edit 命中 SKILL.md 立即重扫、设置页导入。MCP 只披露 Top-20 服务器 id+note，密钥用 <code>$VAR</code> 运行时占位符。</p>
+<h2 id="sec-17">4.3 执行七道工序</h2>
+<p>参数修复（ToolJsonRepair：截断闭合/类型强转/模糊字段名）→ <strong>截断的写操作直接拒绝</strong>（半截文件落盘且报成功 = 静默数据损坏，比不写更糟；教模型分块重写）→ 块状态 RUNNING → 熔断 check → preflight（空参数/缺必填，不 spawn shell 不碰文件系统）→ executeTool 分发 → record 警告附进结果。</p>
+<h2 id="sec-18">4.4 RiskGate：Sentinel 的 Android 形态</h2>
+<p>六级风险类：SAFE（跑，不说话）/ INSTALL（跑，附 notice 让模型告知）/ DESTRUCTIVE、OUTBOUND、REMOTE（问）/ MONEY（每次付时问）。三条硬规则：</p>
+<ul><li><strong>warning 永不豁免</strong>：<code>rm -rf /</code>、<code>curl | sh</code> 这类标志存在时，任何授权都不放行，卡片也不给"记住"选项。</li><li><strong>授权绑定对象</strong>："永远允许 X"就只是 X（某文件夹/主机/收件人），不扩大；"本对话"不提供给付钱。</li><li><strong>付钱的长期授权要屏幕锁确认</strong>，且之后每次自动放行都附 notice 让模型说出来。</li></ul>
+<p>审批是单卡片队列，<strong>180 秒无应答即拒</strong>，模型被告知"停下等用户，不要自行重试"。审计只上报代码与数字（工具种类/风险档/决策/等待秒数），从不包含命令或页面内容。</p>
+<h1 id="sec-19">5. Browser：WebView、双铁律与 hand_over</h1>
+<p>PRoot 里起不了 Chromium，所以手机浏览器永远是应用内 WebView。这反而成就了最优雅的交接：登录态在 App 的 cookie store 里，<strong>同一个 WebView 直接滑到用户面前，不重载不换 cookie</strong>。</p>
+<p>动作集覆盖导航/感知/交互/会话四类（navigate、screenshot、click、type、get<em>readable、get</em>backbone、scroll<em>and</em>collect、fetch、get/set<em>cookies、wait</em>for<em>dom</em>stable……），最多 3 标签页，全部经 JS 注入执行。视觉变化动作自动补截图（300ms 沉降），URL 变化附提示引导模型先看再继续。截图双轨：原图落盘供引用，压缩图（≤2000px JPEG q85）随请求发模型。</p>
+<p>安全判定在<strong>动作执行前</strong>，一次 JS 收集目标元素全部元数据，两条铁律：</p>
+<div class="mermaid">
+flowchart TD
+    A["click/type 到达"] --> B["describeJs 探测元素"]
+    B --> C{"type 目标是密码/验证码字段?<br/>(type/autocomplete/正则/4-8位数字启发式)"}
+    C -->|是| D["拒绝 + HANDOFF_PREFIX<br/>浏览器弹给用户,禁止绕过"]
+    C -->|否| E{"click 标签命中付款/发送/删除?<br/>(TapWords,与 Hands 共用词表)"}
+    E -->|是| F["RiskGate 审批卡,授权绑页面 host"]
+    E -->|否| G["执行"]
+    F -->|允许| G
+    F -->|拒绝| H["错误结果给模型"]
+</div>
+<p><strong>hand<em>over</strong> 是 nanoMuse 的标志性扩展：页面需要人本人（登录/验证码/付款/CAPTCHA）时，模型调 hand</em>over(reason)，聊天层释放所有 tab、把浏览器 sheet 弹出，工具调用挂在 CompletableDeferred 上等用户点 Done（15 分钟超时）。返回措辞直接指挥模型："从当前页面继续，先截图，绝不索要凭据。"工具定义里明令禁止模型用"请你自行登录"结束回合。cookie 也有隐私设计：get_cookies 只回摘要 + offload env 文件路径，<strong>原始值不进对话上下文</strong>。</p>
+<h1 id="sec-20">6. 上下文：历史不可变，视图可裁剪</h1>
+<h2 id="sec-21">6.1 提示词缓存布局</h2>
+<p>OpenAI/DeepSeek 按字节前缀缓存。早期把精确到分钟的时间嵌在提示词中部，跨分钟必失效（T122）。现在 PromptCacheLayout 三段式：稳定前缀（SOUL.md 身份 + 基础指令 + 风险政策 + Hands 阶梯）→ 易变后缀（技能/MCP/记忆/会话附录）→ Runtime context 永远最后（日期只到天）。</p>
+<h2 id="sec-22">6.2 度量三层修正</h2>
+<p>启发式估算对中文友好（ASCII 4 字符/token，非 ASCII BMP 2 字符，emoji 4）；Calibration 用服务器真实 usage 做指数平滑（权重 0.25，scale 限 0.25~4）；UsageAnchor 让服务器报告的前缀大小不可被本地启发式推翻，追加部分按增量计费。</p>
+<h2 id="sec-23">6.3 水位线与五阶段裁剪</h2>
+<p>预算公式：输出预留封顶窗口 15%，硬限 = 窗口 − 预留，扣固定成本后 50% 裁剪目标 / 75% 卸载阈值 / 90% 压缩阈值。ContextTrimming 每轮在请求视图上执行：清旧 reasoning → 卸载 &gt;2000（再 &gt;400）字符的工具结果 → 卸载长参数字段 → 硬压力下归档最新超大结果 → 最后手段折叠整个完整迭代。<strong>卸载不是删除</strong>：内容写文件，原位留 <code>[CONTEXT OFFLOADED] ... Use file_read to retrieve it.</code>，模型随时读回。最近 3 个迭代受保护，未答迭代永远不动，每阶段必须真的变小才接受。</p>
+<h2 id="sec-24">6.4 有界压缩与 v2 锚点</h2>
+<p>每次循环最多 3 次摘要压缩；摘要以 <code>&lt;context-summary&gt;</code> 内联进锚点后第一条 user 消息（保持角色交替），包裹语明确"新指令优先，不要复活已完成工作"。v2 标记以 lastCompactedMessageId 为锚：锚点前预算内的近期轮逐字热身 + 摘要 + 锚点后全量。<strong>锚点解析失败降级为完整历史</strong>——注释记载了真实事故：孤零零一条摘要配热工具会让模型循环，宁多勿少。</p>
+<p>记忆召回则是"文件即记忆"：GLOBAL.md 对 agent 只读（用户维护），每日日志注入最近 3 篇（30 天窗口），memory_get 关键词检索。注意 Android 端没有向量召回，那是 Python 线的能力。</p>
+<h1 id="sec-25">7. 模型 I/O：把差异压在边界内</h1>
+<p>Provider 接口最漂亮的设计是<strong>结构性钳制</strong>：公共入口 streamMessage 不可覆盖，先按当前 model 钳制 thinkingLevel 再委托给实现者覆盖的 streamMessageClamped——fallback 中途换模型也自动生效，不存在"忘了钳制"的代码路径。</p>
+<p>跨协议契约：Responses 的 call<em>id 请求内唯一化重写；sanitizeToolId 过滤成 Anthropic 可接受的字符集；reasoning</em>content 不透明回传（DeepSeek 的 <code>&quot;&quot;</code> 也原样保留，伪造会被模型学走）；Gemini 3.x thoughtSignature 捕获-持久化-回传。静默断流（无内容无 finish reason 的"正常结束"）被 failOnSilentEmptyCompletion 算子转成瞬态错误触发重试。</p>
+<p>持久化侧：UI 块（AssistantBlock）与 wire/持久化 parts（AgentContentPart）分离，buildTurnParts 翻译；工具执行中就更新会话预览；dbMessageId 回填历史供压缩锚点解析。</p>
+<h1 id="sec-26">8. 架构师总评：值得抄什么</h1>
+<p>把整套实现读完，nanoMuse Android 端最值得借鉴的不是某个算法，而是五种工程姿态：</p>
+<ol><li><strong>事故驱动的注释文化</strong>。T94/T256/T307/#579/#271……每个反直觉设计都附事故编号与推理链。代码即文档，文档即战报。</li><li><strong>不变量优先</strong>。历史不可变、视图可裁剪；卸载可召回；授权绑对象；warning 永不豁免。先定不变量，再写实现。</li><li><strong>协议差异声明化</strong>。monolithic/ordered、thinking 钳制、call_id 清洗——差异被声明成属性或压进边界，主循环保持单一状态机。</li><li><strong>可读性当预算花</strong>。tool_title 人话标题、浏览器卡片、审批卡预览、自描述 shell 死亡报告——用户看到的每一步都是可理解的。</li><li><strong>降级宁多勿少</strong>。锚点失效给完整历史、描述失败也标 success、超时不杀 shell。宁可多给信息、多留活路，不造静默失败。</li></ol>
+<p>可直接移植的组件（注意 GPL-3.0 传染性，借鉴思想不受限）：ToolLoopDetector（零依赖）、ContextBudget+ContextTrimming（纯 Kotlin）、PersistentShell 标记协议、RiskGate 三硬规则、PromptCacheLayout 纪律。</p>
+<h1 id="sec-27">9. 重现路径</h1>
+<pre class="code"><code>git clone https://github.com/nano-muse/nanoMuse.git
+bash scripts/android/build-natives.sh        # NDK r27c, Go 1.25+; 大陆网络先设 GOPROXY
+cd android/src/android &amp;&amp; ./gradlew :app:assembleDebug
+./gradlew :app:testDebugUnitTest --tests &#x27;io.github.nanomuse.*&#x27;
+adb logcat -s ToolChain[VM]                  # 观察一次完整工具链</code></pre>
+<p>分章知识库（含源码索引、测试地图、调试标签、官方文档对照表）见同目录 01–08 章。行号会漂移，以函数名为锚。</p>
+<hr>
+<p><em>分析快照：nano-muse/nanoMuse main 分支，2026-11-17。源码 GPL-3.0-or-later；论文 arXiv:2610.08699。本文为独立撰写的架构分析，引用源码仅作评论研究目的。</em></p>
+</div>
+</article>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:'neutral',securityLevel:'loose'});</script>
+</body>
+</html>
